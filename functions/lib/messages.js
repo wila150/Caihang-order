@@ -138,6 +138,26 @@ export function receiptMessage(store, date, order, billQty, soFar = null) {
   ]));
 }
 
+// 出貨單（不含金額）：單價還沒填就先讓店家核對品項和數量，金額之後在收據或對帳單上
+export function slipMessage(store, date, order, billQty) {
+  const body = order.items.map((i) => {
+    const q = billQty(i);
+    const changed = i.ship != null && i.ship !== i.qty;
+    return {
+      type: 'box', layout: 'vertical', contents: [
+        row(i.name, q ? qtyText(q, i.unit) : '缺貨', { weight: 'bold' }),
+        ...(changed ? [text(`叫 ${qtyText(i.qty, i.unit)}`, { size: 'xxs', color: C.muted })] : []),
+      ],
+    };
+  });
+  const slip = order.seq > 1 ? ` 補單 #${order.seq}` : '';
+  return flex(`${md(date)}${slip} 出貨單`, bubble(`${md(date)} 出貨單${slip}`, `${store.name}・${label(date)}`, [
+    ...body,
+    sep,
+    text('單價確認後，金額會在收據或對帳單上通知您。', { size: 'xxs', color: C.muted }),
+  ]));
+}
+
 export function dunningText(store, ar) {
   const lines = ar.months.slice().reverse().map((m) => `・${+m.month.slice(5)} 月 ${money(m.amount)}${m.billed > m.amount ? `（已付 ${money(m.billed - m.amount)}，還差這些）` : ''}`);
   return { type: 'text', text: `${store.name} 您好，提醒您以下貨款還沒收到：\n${lines.join('\n')}\n合計 ${money(ar.total)}\n${payTermsOf(store)}\n已經付款的話請忽略，謝謝！` };

@@ -572,7 +572,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
 
   <section id="slips" hidden>
     <h2>各店出貨單</h2>
-    <div class="bar"><button class="pbtn" data-print="slips">列印全部出貨單＋收據</button><button class="pbtn" data-print="daily">列印當日營業報表</button><button class="pbtn" id="xlsDay">匯出 Excel</button><button class="send" id="receiptAll">全部傳 LINE 收據</button></div>
+    <div class="bar"><button class="pbtn" data-print="slips">列印全部出貨單＋收據</button><button class="pbtn" data-print="daily">列印當日營業報表</button><button class="pbtn" id="xlsDay">匯出 Excel</button><button class="send" id="receiptAll">全部傳 LINE 收據／出貨單</button></div>
     <div id="issueBox"></div>
     <div class="slips" id="slipBox"></div>
     <div class="log" id="logBox"></div>
@@ -606,7 +606,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 103101</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 103102</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -908,17 +908,21 @@ function slipActs(s,o,k){
   return `<div class="sacts">
     ${sig?`<span class="signed">✅ ${who} ${hm(sig.at)}${sig.signer?`（${esc(sig.signer)}）`:''}${sig.hasPng?`<button data-sigview="${k}">看確認單</button>`:''}</span><div class="lockhint" style="flex-basis:100%">配送單已確認，數量不能再改${may('editOrders')&&k===okey(slipsOf(s.id).at(-1))?'；要追加請用下面的「開補單」':''}</div>`
       :may('sign')?`<button class="ok" data-signlink="${k}">傳確認連結</button><button class="pbtn" data-confirm="${k}">直接確認</button>`:''}
-    ${may('statement')&&s.members?.length&&k===s.id?`<button class="send" data-receipt="${s.id}">${o.receiptSentAt?'再傳一次收據':'LINE 傳收據'}</button>`:''}
+    ${may('statement')&&s.members?.length&&k===s.id?`<button class="send" data-receipt="${s.id}">${o.receiptSentAt?'再傳一次收據':missPrices([s.id]).length?(o.slipSentAt?'再傳一次出貨單':'LINE 傳出貨單'):'LINE 傳收據'}</button>`:''}
     <button class="pbtn" data-print="slip" data-store="${k}">列印</button>
     ${!sig&&may('deleteOrders')?`<button class="delslip" data-delslip="${k}">刪除這張單</button>`:''}</div>`;
 }
+// 這些店當天還沒填單價的品項
+const missPrices=ids=>[...new Set(D.orders.filter(o=>ids.includes(o.storeId)).flatMap(o=>o.items).filter(i=>!(i.pid in D.dayPrices)).map(i=>i.name))];
 async function sendReceipts(ids){
   const n=ids.length;if(!n){toast('沒有可以傳的店家（要有訂單、綁定 LINE）');return}
-  // 單價沒填完不能傳：收據會用上次的價格，之後填了正式價格就對不上
-  const miss=[...new Set(D.orders.filter(o=>ids.includes(o.storeId)).flatMap(o=>o.items).filter(i=>!(i.pid in D.dayPrices)).map(i=>i.name))];
-  if(miss.length){toast(`還有 ${miss.length} 個品項沒填單價（${miss.slice(0,3).join('、')}${miss.length>3?'…':''}），先到「單價」頁填完再傳收據`);return}
-  if(!confirm(`用 LINE 傳 ${md(D.date)} 的收據給 ${n} 家店？每個綁定的帳號用掉 1 則訊息額度。`))return;
-  try{const j=await api('POST',{action:'receipt',date:D.date,storeIds:ids});toast(`已傳 ${j.sent}/${j.total} 家`);load()}catch(e){toast(e.message)}
+  // 單價沒填完不傳收據（會用上次的價格，之後填了正式價格就對不上），改成先傳不含金額的出貨單
+  const miss=missPrices(ids);
+  const ask=miss.length
+    ?`${md(D.date)} 還有 ${miss.length} 個品項沒填單價（${miss.slice(0,3).join('、')}${miss.length>3?'…':''}）。\n\n要先用 LINE 傳「出貨單」（只有品項和數量，不含金額）給 ${n} 家店嗎？單價填好後可以再傳收據。每個綁定的帳號用掉 1 則訊息額度。`
+    :`用 LINE 傳 ${md(D.date)} 的收據給 ${n} 家店？每個綁定的帳號用掉 1 則訊息額度。`;
+  if(!confirm(ask))return;
+  try{const j=await api('POST',{action:'receipt',date:D.date,storeIds:ids,noPrice:miss.length>0});toast(`已傳${j.slipOnly?'出貨單':'收據'} ${j.sent}/${j.total} 家`);load()}catch(e){toast(e.message)}
 }
 async function sigImg(sid){try{return (await api('GET',null,`?sig=${D.date}_${sid}`)).signature?.png||''}catch{return ''}}
 

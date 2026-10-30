@@ -7,7 +7,7 @@ import { openDate, today, thisMonth, isDate, isMonth, cutoffLabel, getRulesNow }
 import * as shop from '../lib/shop.js';
 import * as ex from '../lib/expense.js';
 import { signedIn, need, can, ROLES, listUsers, addUser, updateUser, removeUser } from '../lib/auth.js';
-import { remindText, statementMessage, approvedText, dunningText, receiptMessage } from '../lib/messages.js';
+import { remindText, statementMessage, approvedText, dunningText, receiptMessage, slipMessage } from '../lib/messages.js';
 import { getFirestore } from 'firebase-admin/firestore';
 import { signSlipToken, sign } from '../lib/token.js';
 import { originOf } from '../lib/http.js';
@@ -258,17 +258,20 @@ export async function POST(request) {
         // 當天單價沒填完不能傳收據（不然收據用的是上次的價格，之後填了正式價格就對不上）
         const dp = await shop.getDayPrices(b.date);
         const missing = [...new Set(orders.filter((o) => stores.some((s) => s.id === o.storeId)).flatMap((o) => o.items).filter((i) => !(i.pid in dp)).map((i) => i.name))];
-        if (missing.length) throw new UserError(`${b.date.slice(5).replace('-', '/')} 還有 ${missing.length} 個品項沒填單價（${missing.slice(0, 3).join('、')}${missing.length > 3 ? '…' : ''}），先到「單價」頁填完再傳收據`);
+        // 後台確認過「先傳出貨單」（noPrice）才改傳不含金額的出貨單，單價填好後再傳收據
+        const slipOnly = missing.length > 0 && !!b.noPrice;
+        if (missing.length && !slipOnly) throw new UserError(`${b.date.slice(5).replace('-', '/')} 還有 ${missing.length} 個品項沒填單價（${missing.slice(0, 3).join('、')}${missing.length > 3 ? '…' : ''}），先到「單價」頁填完再傳收據`);
         // 一家店有補單的話，每張各一則收據（LINE 一次最多 5 則）
         const res = await Promise.allSettled(stores.map((s) => {
           const mine = orders.filter((x) => x.storeId === s.id).sort((a, c) => (a.seq || 1) - (c.seq || 1)).slice(0, 5);
           if (!mine.length) return Promise.reject(new Error('沒有訂單'));
+          if (slipOnly) return pushToStore(s, mine.map((o) => slipMessage(s, b.date, o, shop.billQty)));
           return shop.monthSoFar(s.id, b.date).then((soFar) => pushToStore(s, mine.map((o) => receiptMessage(s, b.date, o, shop.billQty, soFar))));
         }));
         const at = new Date().toISOString();
         await Promise.all(orders.filter((o) => stores.some((s, i) => s.id === o.storeId && res[i].status === 'fulfilled'))
-          .map((o) => getFirestore().doc(`orders/${b.date}_${shop.slipKey(o.storeId, o.seq || 1)}`).update({ receiptSentAt: at })));
-        return json({ sent: res.filter((r) => r.status === 'fulfilled').length, total: stores.length });
+          .map((o) => getFirestore().doc(`orders/${b.date}_${shop.slipKey(o.storeId, o.seq || 1)}`).update(slipOnly ? { slipSentAt: at } : { receiptSentAt: at })));
+        return json({ sent: res.filter((r) => r.status === 'fulfilled').length, total: stores.length, slipOnly });
       }
       case 'signLink': {
         need(me, 'sign');
