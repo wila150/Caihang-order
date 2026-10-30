@@ -572,7 +572,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
 
   <section id="slips" hidden>
     <h2>各店出貨單</h2>
-    <div class="bar"><button class="pbtn" data-print="slips">列印全部出貨單＋收據</button><button class="pbtn" data-print="daily">列印當日營業報表</button><button class="pbtn" id="xlsDay">匯出 Excel</button><button class="send" id="receiptAll">全部傳 LINE 收據／出貨單</button></div>
+    <div class="bar"><button class="pbtn" data-print="slips">列印全部出貨單／收據</button><button class="pbtn" data-print="daily">列印當日營業報表</button><button class="pbtn" id="xlsDay">匯出 Excel</button><button class="send" id="receiptAll">全部傳 LINE 收據／出貨單</button></div>
     <div id="issueBox"></div>
     <div class="slips" id="slipBox"></div>
     <div class="log" id="logBox"></div>
@@ -606,7 +606,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 103102</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 103103</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -1526,12 +1526,13 @@ function slipPayLine(s,total){
 function docSlip(k){
   const s=SM()[sidOf(k)],supp=seqOf(k)>1?` 補單 #${seqOf(k)}`:'';
   const o=orderOf(k);const items=sortItems(o.items);
-  // 沒有單價權限的人（理貨、司機）印的是不含金額的出貨單
-  if(!hasPrice())return `<div class="doc break"><h3>${esc(SHOPN())}　出貨單${supp}</h3>
+  // 沒有單價權限的人（理貨、司機）、或這張單還有品項沒填當天單價，印的是不含金額的出貨單（不然會印出上次的價格）
+  const unpriced=hasPrice()&&o.items.some(i=>!(i.pid in D.dayPrices));
+  if(!hasPrice()||unpriced)return `<div class="doc break"><h3>${esc(SHOPN())}　出貨單${supp}</h3>
   <div class="meta"><span>客戶：${esc(s.name)}</span><span>日期：${ymdSlash(D.date)}</span><span>路線：第 ${s.route} 站</span>${s.address?`<span>地址：${esc(s.address)}</span>`:''}</div>
   <table><thead><tr><th>品名</th><th class="n">數量</th></tr></thead>
   <tbody>${items.map(i=>`<tr><td>${esc(i.name)}</td><td class="n">${billQty(i)?esc(qtyText(billQty(i),i.unit)):'缺貨'}</td></tr>`).join('')}</tbody></table>
-  <div class="sign"><div>送貨人：＿＿＿＿＿＿</div>${signLine(k)}</div></div>`;
+  <div class="sign"><div>送貨人：＿＿＿＿＿＿</div>${signLine(k)}</div>${unpriced?'<div class="foot">單價確認後，金額會在收據或對帳單上通知您。</div>':''}</div>`;
   const total=amount(o);
   return `<div class="doc break"><h3>${esc(SHOPN())}　出貨單／收據${supp}</h3>
   <div class="meta"><span>客戶：${esc(s.name)}</span><span>日期：${ymdSlash(D.date)}</span><span>路線：第 ${s.route} 站</span>${s.address?`<span>地址：${esc(s.address)}</span>`:''}</div>
