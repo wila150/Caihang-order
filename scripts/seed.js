@@ -6,7 +6,7 @@ import { DEFAULT_PRODUCTS, DEFAULT_UNITS } from '../functions/lib/config.js';
 import { openDate, today, addDays, thisMonth } from '../functions/lib/dates.js';
 
 process.env.FIRESTORE_EMULATOR_HOST ||= '127.0.0.1:8080';
-initializeApp({ projectId: 'garlic-wholesale' });
+initializeApp({ projectId: 'caihang-order' });
 const db = getFirestore();
 
 // 先清空

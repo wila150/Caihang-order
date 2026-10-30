@@ -1,12 +1,14 @@
+> 這是 **菜行** 專用的版本（Firebase 專案 `caihang-order`）。蒜頭行的版本在另一個資料夾，兩邊各改各的。
+
 # 蒜頭叫貨系統（LINE 官方帳號 × Firebase）
 
 店家在 LINE 點「我要叫貨」，打開叫貨單選品項和數量（**看不到價格**），截單前都能自己改。後台依角色分權限，用來看採買總表、補當日單價、處理依配送路線排的出貨單、做月結對帳，也在這裡管理品項、店家和帳號。
 
 | 網址 | 用途 |
 |---|---|
-| `https://garlic-wholesale.web.app/?t=…` | 店家叫貨頁（從 LINE 機器人給的連結開） |
-| `https://garlic-wholesale.web.app/admin` | 後台，用 Google 帳號登入 |
-| `https://garlic-wholesale.web.app/api/webhook` | 填到 LINE Developers 的 Webhook URL |
+| `https://caihang-order.web.app/?t=…` | 店家叫貨頁（從 LINE 機器人給的連結開） |
+| `https://caihang-order.web.app/admin` | 後台，用 Google 帳號登入 |
+| `https://caihang-order.web.app/api/webhook` | 填到 LINE Developers 的 Webhook URL |
 
 ## 架構
 
@@ -47,7 +49,7 @@ LINE 端：圖文選單（`scripts/richmenu/setup.mjs` 建立）、叫貨頁、�
 
 ## 第一次上線
 
-### 1. Firebase Console（console.firebase.google.com → garlic-wholesale）
+### 1. Firebase Console（console.firebase.google.com → caihang-order）
 1. **升級 Blaze 方案**：左下角「升級」。Cloud Functions 要呼叫 LINE，一定要用 Blaze，以這個規模費用大多落在免費額度內。可以順便在 Google Cloud 設預算提醒。
 2. **Firestore Database** → 建立資料庫：位置選 **asia-east1（台灣）**，模式選「正式版」。
 3. **Authentication** → 開始使用 → 登入方式 → 啟用「**Google**」。
@@ -62,16 +64,14 @@ cp functions/.env.example functions/.env   # 填 OWNER_EMAILS（你自己的 Ema
 firebase functions:secrets:set LINE_CHANNEL_SECRET
 firebase functions:secrets:set LINE_CHANNEL_ACCESS_TOKEN
 firebase functions:secrets:set NVIDIA_API_KEY      # AI 叫貨用（build.nvidia.com）
-npm run deploy:veg      # 菜行（caihang-order）
-npm run deploy:garlic   # 蒜頭行（garlic-wholesale）
-# 兩家分開部署：改了先上一家、確認沒問題再上另一家；不要直接打 firebase deploy（預設是蒜頭行）
+npm run deploy          # 部署到 caihang-order
 ```
 
 ### 3. 老闆帳號
 `OWNER_EMAILS` 填你自己的 Gmail，部署後用這個 Google 帳號登入 `/admin` 就是老闆。
 
 ### 4. LINE 設定
-1. **LINE Developers** → Messaging API：Webhook URL 填 `https://garlic-wholesale.web.app/api/webhook`，按 Verify，再打開 **Use webhook**。
+1. **LINE Developers** → Messaging API：Webhook URL 填 `https://caihang-order.web.app/api/webhook`，按 Verify，再打開 **Use webhook**。
 2. **官方帳號管理後台** → 回應設定：「聊天」打開、「Webhook」打開、「自動回應訊息」關掉。
 3. 用你自己的 LINE 傳「我的ID」給機器人，把回覆的 userId 填到 `functions/.env` 的 `ADMIN_LINE_USER_IDS`，再跑一次 `firebase deploy --only functions`。之後有店家申請開通時，你會收到通知。
 4. **圖文選單**：`node scripts/richmenu/render.mjs veg` 產生圖片，再 `LINE_CHANNEL_ACCESS_TOKEN=… node scripts/richmenu/setup.mjs <專案>` 建立。店家選單（我要叫貨、拍照叫貨、我的訂單、聯絡老闆）是所有人預設；老闆選單（記帳、還要買、本月支出、開後台、今日支出）只套用在 ADMIN_LINE_USER_IDS；打「店家選單」「老闆選單」切換。

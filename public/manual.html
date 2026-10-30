@@ -280,7 +280,7 @@ details>div p+p{margin-top:8px}
   </div>
   <div class="body">
     <h3>登入後台</h3>
-    <p>網址 <code>https://garlic-wholesale.web.app/admin</code>，用 <b>Google 帳號</b>登入。員工也用自己的 Google 帳號，你在「設定」加入他們的 Email 就好，不用設密碼。</p>
+    <p>網址 <code><span data-origin></span>/admin</code>，用 <b>Google 帳號</b>登入。員工也用自己的 Google 帳號，你在「設定」加入他們的 Email 就好，不用設密碼。</p>
 
     <h3>開通店家</h3>
     <ol class="steps">
@@ -575,5 +575,6 @@ details>div p+p{margin-top:8px}
 
 </div>
 <script>if(new URLSearchParams(location.search).get('in'))document.querySelector('.back')?.remove();</script>
+<script>document.querySelectorAll('[data-origin]').forEach(e=>e.textContent=location.origin)</script>
 </body>
 </html>

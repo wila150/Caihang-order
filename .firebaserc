@@ -1,7 +1,5 @@
 {
   "projects": {
-    "default": "garlic-wholesale",
-    "veg": "caihang-order",
-    "garlic": "garlic-wholesale"
+    "default": "caihang-order"
   }
 }

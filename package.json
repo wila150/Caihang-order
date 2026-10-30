@@ -1,13 +1,12 @@
 {
-  "name": "garlic-wholesale",
+  "name": "caihang-order",
   "private": true,
   "type": "module",
   "scripts": {
-    "emulators": "firebase emulators:start",
+    "emulators": "firebase emulators:start --project caihang-order",
     "seed": "node scripts/seed.js",
     "link": "node scripts/link.js",
-    "deploy": "echo '請指定要部署哪一家：npm run deploy:veg（菜行）或 npm run deploy:garlic（蒜頭行）' && exit 1",
-    "deploy:veg": "firebase deploy --project veg",
-    "deploy:garlic": "firebase deploy --project garlic"
+    "deploy": "firebase deploy --project caihang-order",
+    "richmenu": "node scripts/richmenu/render.mjs veg && node scripts/richmenu/setup.mjs caihang-order"
   }
 }

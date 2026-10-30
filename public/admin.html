@@ -738,7 +738,7 @@ async function initAuth(){
   const [{initializeApp},A]=await Promise.all([import(SDK+'firebase-app.js'),import(SDK+'firebase-auth.js')]);
   const local=['localhost','127.0.0.1'].includes(location.hostname);
   // 正式站：Firebase Hosting 會提供 /__/firebase/init.json；本機：連到模擬器
-  const config=local?{apiKey:'demo-key',authDomain:location.host,projectId:'garlic-wholesale'}:await (await fetch('/__/firebase/init.json')).json();
+  const config=local?{apiKey:'demo-key',authDomain:location.host,projectId:'caihang-order'}:await (await fetch('/__/firebase/init.json')).json();
   // 登入視窗走跟網站同一個網域（xxx.web.app），手機 Safari、主畫面 App 才不會把登入狀態隔開而失敗
   if(!local)config.authDomain=location.host;
   const auth=A.getAuth(initializeApp(config));
