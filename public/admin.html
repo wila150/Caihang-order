@@ -704,7 +704,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   <section id="stores" hidden>
     <div id="pendBox"></div>
     <h2>店家與配送路線</h2>
-    <div class="bar"><button class="pbtn" type="button" id="erpSBtn">匯入 ERP 客戶</button><input type="file" id="erpSFile" accept=".xlsx,.xls" hidden><button class="pbtn" type="button" id="erpHBtn">匯入 ERP 銷售紀錄</button><input type="file" id="erpHFile" accept=".xlsx,.xls" hidden></div>
+    <div class="bar"><button class="pbtn" type="button" id="erpSBtn">匯入 ERP 客戶</button><input type="file" id="erpSFile" accept=".xlsx,.xls" hidden><button class="pbtn" type="button" id="erpHBtn">匯入 ERP 銷售紀錄</button><input type="file" id="erpHFile" accept=".xlsx,.xls" multiple hidden></div>
     <div id="storeList"></div>
     <div class="savebar"><button class="pbtn" id="addS">＋ 新增店家</button><button class="ok" id="saveS" disabled>儲存店家</button><span id="sDirty"></span></div>
 
@@ -1091,12 +1091,14 @@ async function importErpStores(file){
   }catch(e){toast(e.message)}
 }
 // 匯入 ERP 銷售紀錄（客戶產品銷售統計表）：每家店以前買過什麼，AI 分粗細大小、叫貨頁「常用」會用
-async function importSales(file){
-  const rows=(await readErp(file,{code:'客戶編號',name:'產品編號',amount:'金額'}))?.map(r=>({storeCode:r.code,productCode:r.name,amount:+String(r.amount).replace(/,/g,'')||0}));
-  if(!rows)return;
+// 可以一次選好幾個檔案（不同期間），合在一起匯；每家店會整份換成這次匯的
+async function importSales(files){
+  const rows=[];
+  for(const f of files){const r=await readErp(f,{code:'客戶編號',name:'產品編號',amount:'金額'});if(!r)return;rows.push(...r.map(x=>({storeCode:x.code,productCode:x.name,amount:+String(x.amount).replace(/,/g,'')||0})))}
+  if(!rows.length){toast('檔案裡沒有讀到銷售紀錄');return}
   try{
     const s=await api('POST',{action:'importSales',rows});
-    if(!confirm(`對到 ${s.stores} 家店、${s.rows} 筆買過的品項。${s.missStoreCount?`\n有 ${s.missStoreCount} 個客戶代號不在店家裡（${s.missStores.slice(0,5).join('、')}），先「匯入 ERP 客戶」再匯一次就會有。`:''}${s.missProducts?`\n${s.missProducts} 筆產品代號不在品項裡，略過。`:''}\n\n這幾家店原本的銷售紀錄會換成這份。確定匯入？`))return;
+    if(!confirm(`${files.length>1?`${files.length} 個檔案合起來，`:''}對到 ${s.stores} 家店、${s.rows} 筆買過的品項。${s.missStoreCount?`\n有 ${s.missStoreCount} 個客戶代號不在店家裡（${s.missStores.slice(0,5).join('、')}），先「匯入 ERP 客戶」再匯一次就會有。`:''}${s.missProducts?`\n${s.missProducts} 筆產品代號不在品項裡，略過。`:''}\n\n這幾家店原本的銷售紀錄會換成這份。確定匯入？`))return;
     await api('POST',{action:'importSales',rows,dry:false});
     toast(`已匯入 ${s.stores} 家店的銷售紀錄，AI 和叫貨頁「常用」會照這個`);
   }catch(e){toast(e.message)}
@@ -1994,7 +1996,7 @@ $('erpFile').addEventListener('change',e=>{const f=e.target.files[0];e.target.va
 $('erpSBtn').addEventListener('click',()=>$('erpSFile').click());
 $('erpSFile').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f)importErpStores(f)});
 $('erpHBtn').addEventListener('click',()=>$('erpHFile').click());
-$('erpHFile').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f)importSales(f)});
+$('erpHFile').addEventListener('change',e=>{const f=[...e.target.files];e.target.value='';if(f.length)importSales(f)});
 $('pSearch').addEventListener('input',()=>{openP=-1;renderProducts()});
 $('aeFind').addEventListener('input',aeHits);
 $('aeFind').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();const p=aeMatches()[0];if(p)aePick(p.id)}});
