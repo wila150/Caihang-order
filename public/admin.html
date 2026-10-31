@@ -744,7 +744,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
     </div>
     <details id="devBox" class="devbox" hidden>
       <summary>工程師</summary>
-      <p class="esub">測試期間用。<b>重置測試資料</b>會刪掉所有訂單、配送單確認、單價、對帳、成本和 AI 紀錄；品項、店家、LINE 綁定和帳號會保留。刪掉就救不回來（除了每日備份）。</p>
+      <p class="esub">測試期間用。<b>重置測試資料</b>會刪掉所有訂單、配送單確認、印過的紀錄、採買進度（已買）、單價、對帳、收款、成本、記帳、上游進貨單、付廠商的款、店家回報和 AI 紀錄；品項、店家、LINE 綁定、帳號、設定、店家叫法和 ERP 購買習慣會保留。刪掉就救不回來（除了每日備份）。</p>
       <button id="resetData" type="button" class="danger">重置測試資料</button>
     </details>
   </section>
@@ -1963,7 +1963,7 @@ async function saveRules(){
 }
 /* ---------- 帳號 ---------- */
 async function resetData(){
-  const t=prompt('會刪掉所有訂單、配送單確認、單價、對帳、成本和 AI 紀錄（品項、店家、帳號保留），救不回來。\n\n確定的話請輸入「重置」：');
+  const t=prompt('會刪掉所有訂單、採買進度、單價、對帳、收款、記帳、進貨單、付廠商的款、店家回報和 AI 紀錄（品項、店家、帳號、設定保留），救不回來。\n\n確定的話請輸入「重置」：');
   if(t===null)return;
   if(t.trim()!=='重置'){toast('沒有輸入「重置」，已取消');return}
   try{const j=await api('POST',{action:'resetTestData',confirm:'重置'});await load();toast(`已重置，刪掉 ${j.deleted.orders} 張訂單`)}catch(e){toast(e.message)}
