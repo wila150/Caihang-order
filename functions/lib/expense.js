@@ -162,18 +162,19 @@ async function syncCost(date, pid) {
 }
 
 // 品名裡有認得的廠商（品項上記的 ERP 供應商名稱）就當成付給這家、算進貨付款：「聯興 12000」不用打 @
-export async function supplierIn(text) {
-  const t = String(text || '').replace(/[\s　]/g, '');
-  const sups = [...new Set((await getProducts()).map((p) => p.supplier).filter((s) => s && s.length >= 2 && s !== '其他'))].sort((a, b) => b.length - a.length);
-  return sups.find((s) => t.includes(s)) || '';
+const supplierNames = async () => [...new Set((await getProducts()).map((p) => p.supplier).filter((s) => s && s.length >= 2 && s !== '其他'))].sort((a, b) => b.length - a.length);
+// 「進貨 聯興」「付給七美」「進貨 500 七美」：廠商拿出來當付給誰，品名、備註拿掉廠商名稱（同樣是進貨，寫法統一）
+function tidy(e, sups) {
+  if (e.payee) return e;
+  const s = sups.find((x) => `${e.item || ''}${e.note || ''}`.replace(/[\s　]/g, '').includes(x));
+  if (!s) return e;
+  const strip = (t) => String(t || '').replace(s, ' ').replace(/(付給|給|付)\s*$/, '').replace(/^\s*(付給|給)\s*/, '').replace(/\s+/g, ' ').trim();
+  return { ...e, payee: s, item: strip(e.item) || '進貨', note: strip(e.note), cat: e.cat || PURCHASE };
 }
 
 export async function addExpense(input, { by = '', source = 'admin' } = {}) {
   const cats = await getCats();
-  if (!input.payee) {
-    const s = await supplierIn(`${input.item || ''} ${input.note || ''}`);
-    if (s) input = { ...input, payee: s, cat: input.cat || PURCHASE };
-  }
+  if (!input.payee) input = tidy(input, await supplierNames());
   const e = { id: rid(), ...normalize(input, cats), by: clean(by, 40), source, at: new Date().toISOString() };
   // 今天記的進貨：算進現在正在採買的那個配送日
   if (isPurchase(e.cat, cats) && e.date === today()) {
@@ -220,8 +221,9 @@ export async function getExpense(id) {
 }
 
 export async function listExpenses(month) {
-  const snap = await db().collection('expenses').where('month', '==', month).get();
-  return snap.docs.map((d) => d.data()).sort((a, b) => a.date.localeCompare(b.date) || a.at.localeCompare(b.at));
+  const [snap, sups] = await Promise.all([db().collection('expenses').where('month', '==', month).get(), supplierNames()]);
+  // 舊的記帳（還沒自動認廠商的時候記的）也照同樣的規則整理，廠商總帳才算得到
+  return snap.docs.map((d) => tidy(d.data(), sups)).sort((a, b) => a.date.localeCompare(b.date) || a.at.localeCompare(b.at));
 }
 
 // LINE 查帳：今天／本月各分類多少

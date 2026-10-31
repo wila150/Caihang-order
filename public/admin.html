@@ -1694,15 +1694,21 @@ function renderReport(){
     ${s.hasLine&&may('statement')?`<button class="send" data-dun="${s.storeId}">LINE 催款</button>`:''}</div>`).join(''):'<div class="empty">沒有未收款 👍</div>'}`;
 }
 // 記帳（支出）：後台記，或老闆的 LINE 打「油錢 500」
-let ecOpen=false,expEdit=null;
+let ecOpen=false,expEdit=null,expOpenSup=new Set();
+// 記住哪幾家廠商點開了（改帳、刪帳重畫時不要收起來）
+document.addEventListener('toggle',e=>{const n=e.target.dataset?.expsup;if(n==null)return;e.target.open?expOpenSup.add(n):expOpenSup.delete(n)},true);
 function expHTML(){
   const L=R.expenses||[],cats=R.expenseCats||[],isPur=c=>c==='進貨付款'||!!cats.find(x=>x.name===c)?.purchase;
   const by={};L.forEach(e=>by[e.cat]=(by[e.cat]||0)+e.amount);
   const tot=L.reduce((a,e)=>a+e.amount,0),pur=L.filter(e=>isPur(e.cat)).reduce((a,e)=>a+e.amount,0);
   const def=D.today.startsWith(R.month)?D.today:R.month+'-01';
   const opt=(sel)=>[['進貨',cats.filter(c=>c.product)],['其他支出',cats.filter(c=>!c.product)]].map(([g,l])=>l.length?`<optgroup label="${g}">${l.map(c=>`<option ${c.name===sel?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>`:'').join('');
+  // 同一家廠商的進貨收在一起（點開看每一筆），下面日期列表只放其他的
+  const supRow=e=>e.payee&&isPur(e.cat);
+  const sg={};L.filter(supRow).forEach(e=>(sg[e.payee]??=[]).push(e));
+  const SUPHTML=()=>Object.keys(sg).length?`<h4 style="margin:12px 2px 6px">進貨（依廠商）</h4>`+Object.entries(sg).sort((a,b)=>b[1].reduce((x,e)=>x+e.amount,0)-a[1].reduce((x,e)=>x+e.amount,0)).map(([n,l])=>`<details class="bill expsup" ${expOpenSup.has(n)?'open':''} data-expsup="${esc(n)}"><summary class="bill-h"><span><b>${esc(n)}</b><small>${l.length} 筆</small></span><span class="amt">${money(l.reduce((x,e)=>x+e.amount,0))}</span></summary><div style="padding:0 12px 8px">${l.slice().reverse().map(e=>expRow(e,true)).join('')}</div></details>`).join(''):'';
   let last='';
-  const rows=L.slice().reverse().map(e=>{const h=e.date!==last?`<div class="expd">${dlabel(e.date)}</div>`:'';last=e.date;
+  const expRow=(e,inSup)=>{const h=!inSup&&e.date!==last?`<div class="expd">${dlabel(e.date)}</div>`:'';if(!inSup)last=e.date;
     if(expEdit===e.id)return h+`<form class="expf exped" data-expform="${e.id}" onsubmit="return false">
       <input type="date" name="date" value="${e.date}" aria-label="日期">
       <select name="cat" aria-label="分類">${opt(e.cat)}</select>
@@ -1711,10 +1717,12 @@ function expHTML(){
       <input name="payee" maxlength="20" value="${esc(e.payee||'')}" placeholder="付給誰（選填）" aria-label="付給誰">
       <input name="note" maxlength="40" value="${esc(e.note||'')}" placeholder="備註（選填）" aria-label="備註">
       <div class="expbtns"><button type="button" class="pbtn" data-expcancel="1">取消</button><button type="button" class="send" data-expsave="${e.id}">儲存</button></div></form>`;
-    return h+`<div class="exp"><span>${esc(e.item)}<em>${[e.buy?.cost!=null&&`進價 $${e.buy.cost}/${e.buy.unit}`,e.payee&&'付給 '+e.payee,e.note,e.source==='line'?'LINE':'',e.by].filter(Boolean).map(esc).join('・')}</em></span>
-    <select data-expcat="${e.id}" aria-label="${esc(e.item)} 分類">${opt(e.cat)}</select><b>${money(e.amount)}</b><span class="expact"><button class="x" data-expedit="${e.id}" aria-label="編輯 ${esc(e.item)}">✎</button><button class="x" data-expdel="${e.id}" aria-label="刪除 ${esc(e.item)}">✕</button></span></div>`}).join('');
+    return h+`<div class="exp"><span>${inSup?`<small>${md(e.date)}</small> `:''}${esc(e.item)}<em>${[e.buy?.cost!=null&&`進價 $${e.buy.cost}/${e.buy.unit}`,!inSup&&e.payee&&'付給 '+e.payee,e.note,e.source==='line'?'LINE':'',e.by].filter(Boolean).map(esc).join('・')}</em></span>
+    <select data-expcat="${e.id}" aria-label="${esc(e.item)} 分類">${opt(e.cat)}</select><b>${money(e.amount)}</b><span class="expact"><button class="x" data-expedit="${e.id}" aria-label="編輯 ${esc(e.item)}">✎</button><button class="x" data-expdel="${e.id}" aria-label="刪除 ${esc(e.item)}">✕</button></span></div>`};
+  const rows=L.filter(e=>!supRow(e)).slice().reverse().map(e=>expRow(e,false)).join('');
+  const supHTML=SUPHTML();
   return `<h2>記帳（支出）</h2>
-  <p class="esub">老闆的 LINE 也能記：直接打「油錢 500」「昨天 紙箱 800」「進貨 12000 @大成」。打「本月支出」可以查帳。</p>
+  <p class="esub">老闆的 LINE 也能記：直接打「油錢 500」「昨天 紙箱 800」「進貨 七美 12000」（字裡有廠商名稱就自動算付給那家，同一家的進貨會收在一起）。打「本月支出」可以查帳。</p>
   <form class="expf" id="expForm" onsubmit="return false">
     <input type="date" name="date" value="${def}" aria-label="日期">
     <select name="cat" aria-label="分類"><option value="">自動分類</option>${opt('')}</select>
@@ -1726,7 +1734,7 @@ function expHTML(){
   </form>
   ${L.length?`<div class="expsum"><span><b>${+R.month.slice(5)} 月 ${L.length} 筆 ${money(tot)}</b></span>${Object.entries(by).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<span>${esc(c)} ${money(v)}</span>`).join('')}</div>
   ${pur?`<p class="esub">進貨記了 ${money(pur)}：那天有在「單價」頁填進價的話，進貨成本用進價算，這裡只列出來不重複扣；沒填進價的日子，就用這裡記的進貨當進貨成本。</p>`:''}
-  <div class="scroll" style="max-height:420px;overflow:auto">${rows}</div>`:'<div class="empty">這個月還沒有記帳</div>'}
+  ${supHTML}${rows?`${supHTML?'<h4 style="margin:12px 2px 6px">其他支出</h4>':''}<div class="scroll" style="max-height:420px;overflow:auto">${rows}</div>`:''}`:'<div class="empty">這個月還沒有記帳</div>'}
   <details ${ecOpen?'open':''} id="ecBox" style="margin-top:10px"><summary>分類與關鍵字</summary>
     <p class="esub">打的字裡有關鍵字，就自動分到那一類。分類不對時在上面改，系統會自動記住。進貨的分類跟「品項」頁的分類一樣，品名會自動當關鍵字；要改分類名稱請到品項頁。</p>
     <div class="ecats" id="ecats">${cats.map((c,i)=>{const fixed=c.product||c.name==='雜支';return `<label><input data-ecn="${i}" value="${esc(c.name)}" maxlength="12" ${fixed?'readonly':''} aria-label="分類名稱"><input data-ecw="${i}" value="${esc(c.words.join('、'))}" placeholder="關鍵字，用、隔開" aria-label="${esc(c.name)} 關鍵字">${fixed?'<span></span>':`<button type="button" class="x" data-ecdel="${i}" aria-label="刪除分類 ${esc(c.name)}">✕</button>`}</label>`}).join('')}</div>
