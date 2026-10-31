@@ -2,7 +2,7 @@
 import { SHOP } from '../lib/config.js';
 import { saveRules, savePalette, savePrints } from '../lib/rules.js';
 import { json, fail, readJSON, UserError } from '../lib/http.js';
-import { push } from '../lib/line.js';
+import { push, linkMenu } from '../lib/line.js';
 import { openDate, today, thisMonth, isDate, isMonth, cutoffLabel, getRulesNow } from '../lib/dates.js';
 import * as shop from '../lib/shop.js';
 import * as ex from '../lib/expense.js';
@@ -15,6 +15,7 @@ import * as report from '../lib/report.js';
 import { resetTestData } from '../lib/reset.js';
 import { applyDraft } from '../lib/aiorder.js';
 import { saveImage } from './img.js';
+import { listBoss, newBossCode, unbindBoss } from '../lib/boss.js';
 
 async function statement(month, storeId) {
   const [all, paid] = await Promise.all([shop.monthAmounts(month), shop.getPaid(month)]);
@@ -125,6 +126,7 @@ export async function GET(request) {
       signatures: await signaturesOf(date),
       // 出貨單印過的紀錄：{ 單號key: { q, p, at, by } }，畫面比對現在的內容，看是不是印過後又改了
       printed: (await getFirestore().doc('printed/' + date).get()).data()?.slips || {},
+      bossLine: can(me.role, 'users') ? await listBoss() : null,
       dayPrices: showPrices ? dayPrices : {},
       dayCosts: can(me.role, 'prices') ? await shop.getDayCosts(date) : {},
       bought: await shop.getBought(date),
@@ -322,6 +324,17 @@ export async function POST(request) {
         const rec = { date: b.date, storeId: s.id, seq, key, ...(png ? { png } : {}), signer, by: me.name, at: new Date().toISOString() };
         await getFirestore().doc(`signatures/${b.date}_${key}`).create(rec).catch((e) => { if (e.code === 6) throw new UserError('這張配送單剛剛已經確認過了', 409); throw e; }); // create：已經有人確認就失敗，不會互相蓋掉
         return json({ signature: { ...rec, png: undefined, hasPng: !!png } });
+      }
+      // 老闆的 LINE：產生綁定碼、解除（解除後選單換回店家選單）
+      case 'bossCode':
+        need(me, 'users');
+        await newBossCode();
+        return json({ bossLine: await listBoss() });
+      case 'bossUnbind': {
+        need(me, 'users');
+        const uid = String(b.userId || '');
+        await linkMenu(uid, 'store').catch((e) => console.error(e));
+        return json({ bossLine: await unbindBoss(uid) });
       }
       case 'palette':
         need(me, 'users');

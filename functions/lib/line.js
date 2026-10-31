@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { bossIds, envBossIds } from './boss.js';
 
 const API = 'https://api.line.me/v2/bot';
 
@@ -46,12 +47,11 @@ export async function getContent(messageId) {
   return Buffer.from(await r.arrayBuffer());
 }
 
-export function adminIds() {
-  return (process.env.ADMIN_LINE_USER_IDS || '').split(',').map((s) => s.trim()).filter(Boolean);
-}
+// 老闆的 LINE：設定檔的加上在 LINE 綁定的（見 boss.js）
+export const adminIds = envBossIds;
 
 export async function notifyAdmins(text) {
-  const results = await Promise.allSettled(adminIds().map((id) => push(id, [{ type: 'text', text }])));
+  const results = await Promise.allSettled((await bossIds()).map((id) => push(id, [{ type: 'text', text }])));
   results.filter((r) => r.status === 'rejected').forEach((r) => console.error(r.reason));
 }
 

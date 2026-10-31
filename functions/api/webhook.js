@@ -1,6 +1,7 @@
 // LINE Messaging API webhook：https://你的網址/api/webhook
 import { SHOP } from '../lib/config.js';
-import { verifySignature, reply, displayName, notifyAdmins, loading, adminIds, linkMenu } from '../lib/line.js';
+import { verifySignature, reply, displayName, notifyAdmins, loading, linkMenu } from '../lib/line.js';
+import { bossIds, bindBoss } from '../lib/boss.js';
 import { getFirestore } from 'firebase-admin/firestore';
 import * as ex from '../lib/expense.js';
 import { orderLink } from '../lib/token.js';
@@ -41,7 +42,23 @@ async function handle(e, origin) {
   const wantsMine = action === 'mine' || /^(我的訂單|查訂單|訂單查詢)$/.test(said);
 
   if (/^我的\s*id$/i.test(said)) {
-    return say({ type: 'text', text: `您的 LINE userId：\n${uid}\n\n老闆把它填到 ADMIN_LINE_USER_IDS，就能收到開通申請通知。` });
+    return say({ type: 'text', text: `您的 LINE userId：\n${uid}\n\n要設成老闆，請到後台「設定 → 老闆的 LINE」產生綁定碼，在這裡傳「綁定老闆 綁定碼」。` });
+  }
+  // 綁定老闆：後台產生 6 位數綁定碼，老闆在 LINE 傳「綁定老闆 123456」
+  const bossCode = said.match(/^綁定老闆\s*(\d{6})$/)?.[1];
+  if (bossCode) {
+    try {
+      const name = await displayName(uid);
+      const r = await bindBoss(uid, name, bossCode);
+      if (r.already) return say({ type: 'text', text: '您已經是老闆了，傳「老闆選單」可以切到老闆選單。' });
+      await linkMenu(uid, 'boss').catch((err) => console.error(err));
+      await getFirestore().doc('adminMode/' + uid).set({ mode: 'boss' }, { merge: true });
+      await notifyAdmins(`👑 ${name || '（未知名稱）'} 綁定成老闆的 LINE 了。不是你們的人的話，到後台「設定 → 老闆的 LINE」解除。`).catch(() => {});
+      return say({ type: 'text', text: '✅ 已綁定成老闆！下面換成老闆選單了：\n・記帳：直接打「油錢 500」\n・還要買、今日訂單、未收帳款都在選單上\n・店家叫貨、開通申請會通知您\n\n要測試叫貨，傳「店家選單」切過去。' });
+    } catch (err) {
+      if (err.status) return say({ type: 'text', text: err.message });
+      throw err;
+    }
   }
   if (action === 'contact' || /^聯絡(我們|老闆)?$/.test(said)) {
     return say({ type: 'text', text: `直接在這裡留言就可以，老闆看到會回覆您。${SHOP.phone ? `\n急事請打 ${SHOP.phone}` : ''}` });
@@ -62,9 +79,9 @@ async function handle(e, origin) {
     }
   }
 
-  // 記帳：老闆的 LINE（ADMIN_LINE_USER_IDS）打「油錢 500」就記一筆支出。
+  // 記帳：老闆的 LINE（設定檔 ADMIN_LINE_USER_IDS 或在 LINE 綁定的）打「油錢 500」就記一筆支出。
   // 在老闆選單時「油錢 500」直接記；切到店家選單（測試叫貨）時要加「記帳」開頭，不然會被當成叫貨
-  if (adminIds().includes(uid)) {
+  if ((await bossIds()).includes(uid)) {
     const r = await bossChat({ said, pb, action, store, uid });
     if (r) return say(r);
     if (r === false) return;

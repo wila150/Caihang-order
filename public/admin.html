@@ -655,6 +655,11 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
     </div></details>
     </div>
     <div id="userBox">
+    <details class="sgrp" id="bossGrp"><summary><svg class="si" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20h20M4 20l-2-12 6 4 4-8 4 8 6-4-2 12"/></svg><span class="st">老闆的 LINE<small id="hBoss"></small></span><svg class="sc" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></summary><div class="sgb">
+      <p class="sub">綁定成老闆的 LINE 會有老闆選單（記帳、還要買、今日訂單、未收帳款），店家叫貨、開通申請也會通知他。</p>
+      <div id="bossBox"></div>
+      <div class="bar"><button class="pbtn" type="button" id="bossCode">產生老闆綁定碼</button></div>
+    </div></details>
     <details class="sgrp"><summary><svg class="si" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><span class="st">列印<small id="hPrints"></small></span><svg class="sc" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></summary><div class="sgb">
     <form class="addform rules" id="printsForm" onsubmit="return false">
       <fieldset class="wds"><legend>要顯示哪些列印按鈕</legend><div id="pkList"></div></fieldset>
@@ -872,7 +877,7 @@ function renderAll(){
   $('unitsSet').hidden=!may('products');
   if(may('stores'))renderStores();
   $('userBox').hidden=$('rulesBox').hidden=$('palSet').hidden=!may('users');
-  if(may('users')){renderRules();renderPalettes();renderPrints()}
+  if(may('users')){renderRules();renderPalettes();renderPrints();renderBoss()}
   if(may('users'))renderUsers();
   $('devBox').hidden=!D.me.engineer;
 }
@@ -1838,6 +1843,16 @@ function docSales(orders){
   <table><thead><tr><th>客戶編號</th><th>客戶簡稱</th><th>產品編號</th><th>品名</th><th class="n">數量</th><th class="n">金額</th></tr></thead><tbody>${body}</tbody>
   <tfoot><tr><td></td><td></td><td colspan="3">總　　計：</td><td class="n">${n0(all)}</td></tr></tfoot></table></div>`;
 }
+// 設定頁「老闆的 LINE」：綁定碼 30 分鐘內有效，用一次就失效
+function renderBoss(){
+  const b=D.bossLine;if(!b||!$('bossBox'))return;
+  const left=b.code?Math.max(0,Math.ceil((b.code.exp-Date.now())/60e3)):0;
+  $('bossBox').innerHTML=`${b.ids.map(x=>`<div class="urow"><span><b>${esc(x.name||'（未知名稱）')}</b><small>${esc(dlabel(new Date(Date.parse(x.at)+8*3600e3).toISOString().slice(0,10)))} ${esc(hm(x.at))} 綁定</small></span><span></span><span class="ua"><button data-bossrm="${esc(x.userId)}">解除</button></span></div>`).join('')}
+    ${b.envCount?`<p class="sub">另外有 ${b.envCount} 個寫在設定檔（ADMIN_LINE_USER_IDS），要工程師改設定檔才能解除。</p>`:''}
+    ${!b.ids.length&&!b.envCount?'<div class="empty">還沒有綁定老闆的 LINE</div>':''}
+    ${b.code&&left?`<div class="pnote" style="border:1.5px solid var(--leaf);border-radius:10px;padding:10px 12px;margin:8px 0">請老闆用自己的 LINE 加「${esc(D.shop.basicId||'官方帳號')}」好友，在聊天室傳：<div style="font-size:1.6rem;font-weight:900;letter-spacing:.1em;margin:6px 0">綁定老闆 ${esc(b.code.code)}</div><small>${left} 分鐘內有效，用一次就失效；重新產生的話這組就作廢。</small>${D.shop.basicId?`<div style="margin-top:6px"><a href="https://line.me/R/oaMessage/${encodeURIComponent(D.shop.basicId)}/?${encodeURIComponent('綁定老闆 '+b.code.code)}" target="_blank" rel="noopener">在手機上點這裡直接開 LINE 帶好文字</a></div>`:''}</div>`:''}`;
+  if($('hBoss'))$('hBoss').textContent=`${b.ids.length+b.envCount} 個`;
+}
 // 設定頁「列印」
 function renderPrints(){
   const p=PR();if($('printsForm').dataset.dirty)return;
@@ -2042,6 +2057,7 @@ document.addEventListener('click',async e=>{
   if(b.id==='addUnit'){const u=$('newUnit').value.trim();if(!u){toast('請先填單位');$('newUnit').focus();return}if(D.units.includes(u)){toast(`「${u}」已經有了`);return}saveUnits([...D.units,u],`已新增單位「${u}」`)}
   if(b.dataset.cmenu!=null){const ci=+b.dataset.cmenu;openCat=openCat===ci?-1:ci;renderProducts();return}
   if(b.dataset.addp!=null){addProduct(+b.dataset.addp);return}
+  if(b.dataset.bossrm){const x=D.bossLine?.ids.find(i=>i.userId===b.dataset.bossrm);if(confirm(`解除「${x?.name||'這個 LINE'}」的老闆身分？他的選單會換回店家選單，也不會再收到通知。`)){try{const j=await api('POST',{action:'bossUnbind',userId:b.dataset.bossrm});D.bossLine=j.bossLine;renderBoss();toast('已解除')}catch(e){toast(e.message)}}return}
   if(b.dataset.cfold!=null){toggleCat(D.categories[+b.dataset.cfold]);return}
   if(b.dataset.cren!=null){const c=D.categories[+b.dataset.cren],to=prompt(`「${c}」改成：`,c);if(to&&to.trim()&&to.trim()!==c){if(pDirty){toast('請先按「儲存品項」');return}try{const j=await api('POST',{action:'renameCategory',from:c,to:to.trim()});D.categories=j.categories;D.products=j.products;P=structuredClone(j.products);openCat=-1;renderProducts();toast(`已改名為「${to.trim()}」`)}catch(err){toast(err.message)}}return}
   if(b.dataset.cmove!=null){const ci=+b.dataset.cmove,d=+b.dataset.d,l=[...D.categories];[l[ci],l[ci+d]]=[l[ci+d],l[ci]];openCat=ci+d;saveCats(l,'分類順序已更新');return}
@@ -2159,6 +2175,7 @@ window.addEventListener('beforeunload',e=>{if(pDirty||sDirty||gDirty||rDirty||$(
 $('resetData').addEventListener('click',resetData);
 $('saveRules').addEventListener('click',saveRules);
 $('savePrints').addEventListener('click',savePrints);
+$('bossCode').addEventListener('click',async()=>{try{const j=await api('POST',{action:'bossCode'});D.bossLine=j.bossLine;renderBoss();toast('已產生綁定碼，30 分鐘內有效')}catch(e){toast(e.message)}});
 $('printsForm').addEventListener('input',()=>{$('printsForm').dataset.dirty=1});
 $('rulesForm').addEventListener('input',()=>{$('rulesForm').dataset.dirty=1;$('rAddonUntil').disabled=!$('rAddon').checked});
 // 加到主畫面的後台沒有重新整理按鈕：切回來時問伺服器有沒有新版本，有的話跳出「點這裡更新」

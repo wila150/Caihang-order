@@ -12,7 +12,7 @@ LINE 叫貨＋後台管理系統：店家在 LINE 官方帳號叫貨（打字、
   - `api/admin.js` 後台 API、`api/shop.js` 叫貨頁 API、`api/img.js` 推播圖片
   - `lib/shop.js` 訂單／店家／品項／收款、`lib/expense.js` 記帳、`lib/report.js` 報表、`lib/aiorder.js`＋`lib/ai.js` AI 叫貨（NVIDIA）、`lib/dates.js` 截單與配送日、`lib/rules.js` 後台設定
 - 資料庫 Firestore；金鑰在 Secret Manager（LINE_CHANNEL_SECRET、LINE_CHANNEL_ACCESS_TOKEN、NVIDIA_API_KEY），**不要印出來、不要進 git**。
-- 每個專案的環境變數在 `functions/.env.<專案ID>`（SHOP_KIND、SHOP_NAME、ENGINEER_EMAILS、ADMIN_LINE_USER_IDS、LIFF_ID…）。
+- 每個專案的環境變數在 `functions/.env.<專案ID>`（SHOP_KIND、SHOP_NAME、ENGINEER_EMAILS、ADMIN_LINE_USER_IDS、LIFF_ID…）。老闆的 LINE 除了 ADMIN_LINE_USER_IDS，也可以在後台「設定 → 老闆的 LINE」產生綁定碼、在 LINE 傳「綁定老闆 123456」綁（`lib/boss.js`，存 settings/bossLine），判斷老闆一律用 `bossIds()`。
 
 ## 常用指令
 - 部署：`npm run deploy`（只會部署到本資料夾對應的專案）；改前端只要 `--only hosting`，改後端加 `functions:api`
