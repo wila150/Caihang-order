@@ -1704,7 +1704,8 @@ function expHTML(){
   const by={};L.forEach(e=>by[e.cat]=(by[e.cat]||0)+e.amount);
   const tot=L.reduce((a,e)=>a+e.amount,0),pur=L.filter(e=>isPur(e.cat)).reduce((a,e)=>a+e.amount,0);
   const def=D.today.startsWith(R.month)?D.today:R.month+'-01';
-  const opt=(sel)=>[['進貨',cats.filter(c=>c.product)],['其他支出',cats.filter(c=>!c.product)]].map(([g,l])=>l.length?`<optgroup label="${g}">${l.map(c=>`<option ${c.name===sel?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>`:'').join('');
+  // 進貨：匯入 ERP 後是廠商（選哪家就是付給哪家），以前的品項分類藏起來（舊資料選到的才顯示）
+  const opt=(sel)=>[[cats.some(c=>c.supplier)?'進貨（廠商）':'進貨',cats.filter(c=>c.product&&(!c.hidden||c.name===sel))],['其他支出',cats.filter(c=>!c.product)]].map(([g,l])=>l.length?`<optgroup label="${g}">${l.map(c=>`<option ${c.name===sel?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>`:'').join('');
   // 同一家廠商的進貨收在一起（點開看每一筆），下面日期列表只放其他的
   const supRow=e=>e.payee&&isPur(e.cat);
   const sg={};L.filter(supRow).forEach(e=>(sg[e.payee]??=[]).push(e));
@@ -1739,7 +1740,7 @@ function expHTML(){
   ${supHTML}${rows?`${supHTML?'<h4 style="margin:12px 2px 6px">其他支出</h4>':''}<div class="scroll" style="max-height:420px;overflow:auto">${rows}</div>`:''}`:'<div class="empty">這個月還沒有記帳</div>'}
   <details ${ecOpen?'open':''} id="ecBox" style="margin-top:10px"><summary>分類與關鍵字</summary>
     <p class="esub">打的字裡有關鍵字，就自動分到那一類。分類不對時在上面改，系統會自動記住。進貨的分類跟「品項」頁的分類一樣，品名會自動當關鍵字；要改分類名稱請到品項頁。</p>
-    <div class="ecats" id="ecats">${cats.map((c,i)=>{const fixed=c.product||c.name==='雜支';return `<label><input data-ecn="${i}" value="${esc(c.name)}" maxlength="12" ${fixed?'readonly':''} aria-label="分類名稱"><input data-ecw="${i}" value="${esc(c.words.join('、'))}" placeholder="關鍵字，用、隔開" aria-label="${esc(c.name)} 關鍵字">${fixed?'<span></span>':`<button type="button" class="x" data-ecdel="${i}" aria-label="刪除分類 ${esc(c.name)}">✕</button>`}</label>`}).join('')}</div>
+    <div class="ecats" id="ecats">${cats.map((c,i)=>{if(c.hidden)return '';const fixed=c.product||c.name==='雜支';return `<label><input data-ecn="${i}" value="${esc(c.name)}" maxlength="12" ${fixed?'readonly':''} aria-label="分類名稱"><input data-ecw="${i}" value="${esc(c.words.join('、'))}" placeholder="關鍵字，用、隔開" aria-label="${esc(c.name)} 關鍵字">${fixed?'<span></span>':`<button type="button" class="x" data-ecdel="${i}" aria-label="刪除分類 ${esc(c.name)}">✕</button>`}</label>`}).join('')}</div>
     <div class="bar" style="margin-top:8px"><button class="pbtn" type="button" id="ecAdd">＋ 新增分類</button><button class="send" type="button" id="ecSave">儲存分類</button></div>
   </details>`;
 }

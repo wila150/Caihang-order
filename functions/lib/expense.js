@@ -31,7 +31,10 @@ export const DEFAULT_CATS = [
   { name: OTHER, words: [] },
 ];
 
-// 回傳 [{ name, words, purchase, product }]：品項分類在最前面（product），再來是自己的支出分類
+// 進貨的分類：品項有記廠商（匯入 ERP 後）就用廠商（七美、聯興…，分類就是付給誰），沒有就用品項分類（葉菜類…）
+const supplierList = (products) => [...new Map(products.filter((p) => p.supplier).sort((a, b) => String(a.supplierCode || '~').localeCompare(String(b.supplierCode || '~'))).map((p) => [p.supplier, 1])).keys()];
+// 回傳 [{ name, words, purchase, product, supplier, hidden }]：進貨分類在最前面（product），再來是自己的支出分類
+//   用廠商的時候，舊的品項分類（以前記的葉菜類…）還是算進貨，只是不出現在選單（hidden）
 export async function getCats() {
   const [saved, cats, products] = await Promise.all([
     db().doc('settings/expenseCats').get().then((d) => d.data()?.items ?? DEFAULT_CATS),
@@ -39,11 +42,19 @@ export async function getCats() {
   ]);
   const learned = Object.fromEntries(saved.map((c) => [c.name, c.words || []]));
   const aliases = (p) => (Array.isArray(p.alias) ? p.alias : String(p.alias || '').split(/[、,，]/)).map((x) => x.trim()).filter(Boolean);
-  const prod = cats.map((name) => ({
-    name, purchase: true, product: true,
-    words: [...new Set([...products.filter((p) => p.cat === name).flatMap((p) => [p.name, ...aliases(p)]), ...(learned[name] || [])])],
+  const sups = supplierList(products);
+  const bySup = sups.length > 0;
+  // 品名自動分到它的廠商（打「高麗菜 1500」就是付給西螺市場）
+  const supCats = sups.map((name) => ({
+    name, purchase: true, product: true, supplier: true,
+    words: [...new Set([...products.filter((p) => p.supplier === name).flatMap((p) => [p.name, ...aliases(p)]), ...(learned[name] || [])])],
   }));
-  return [...prod, ...saved.filter((c) => !cats.includes(c.name)).map((c) => ({ ...c, purchase: c.name === PURCHASE }))];
+  const prod = cats.filter((name) => !sups.includes(name)).map((name) => ({
+    name, purchase: true, product: true, ...(bySup ? { hidden: true } : {}),
+    words: [...new Set([...(bySup ? [] : products.filter((p) => p.cat === name).flatMap((p) => [p.name, ...aliases(p)])), ...(learned[name] || [])])],
+  }));
+  const fixed = new Set([...sups, ...cats]);
+  return [...supCats, ...prod, ...saved.filter((c) => !fixed.has(c.name)).map((c) => ({ ...c, purchase: c.name === PURCHASE }))];
 }
 export const isPurchase = (cat, cats) => cat === PURCHASE || !!cats.find((c) => c.name === cat)?.purchase;
 
@@ -59,10 +70,10 @@ export async function saveCats(input) {
     return { name, words: [...new Set(words)].slice(0, 30) };
   });
   if (!names.has(OTHER)) list.push({ name: OTHER, words: [] }); // 認不出來的都放雜支，不能刪
-  // 品項分類的關鍵字只存另外加的（品名會自動帶進來）
+  // 廠商、品項分類的關鍵字只存另外加的（品名會自動帶進來）
   const [cats, products] = await Promise.all([getCategories(), getProducts()]);
-  const auto = new Set(products.map((p) => p.name));
-  await db().doc('settings/expenseCats').set({ items: list.map((c) => (cats.includes(c.name) ? { ...c, words: c.words.filter((w) => !auto.has(w)) } : c)) });
+  const auto = new Set(products.map((p) => p.name)), fixed = new Set([...cats, ...supplierList(products)]);
+  await db().doc('settings/expenseCats').set({ items: list.map((c) => (fixed.has(c.name) ? { ...c, words: c.words.filter((w) => !auto.has(w)) } : c)) });
   return getCats();
 }
 
@@ -128,7 +139,9 @@ function normalize(input, cats) {
   const item = clean(input.item, 30);
   const cat = cats.some((c) => c.name === input.cat) ? input.cat : guessCat(`${item} ${input.note || ''} ${input.payee || ''}`, cats);
   if (!item && !input.cat) throw new UserError('請填買了什麼，例如 油錢');
-  return { date, month: date.slice(0, 7), amount, cat, item: item || cat, payee: clean(input.payee, 20), note: clean(input.note, 40) };
+  // 分類是廠商就是付給這家
+  const sup = cats.find((c) => c.name === cat)?.supplier;
+  return { date, month: date.slice(0, 7), amount, cat, item: item || (sup ? '進貨' : cat), payee: sup ? cat : clean(input.payee, 20), note: clean(input.note, 40) };
 }
 
 // 記帳的品名有品項和數量（「高麗菜20斤」「青蔥 2斤4兩」），就算成採買進度的已買；單位要跟品項一樣才算
@@ -169,7 +182,7 @@ function tidy(e, sups) {
   const s = sups.find((x) => `${e.item || ''}${e.note || ''}`.replace(/[\s　]/g, '').includes(x));
   if (!s) return e;
   const strip = (t) => String(t || '').replace(s, ' ').replace(/(付給|給|付)\s*$/, '').replace(/^\s*(付給|給)\s*/, '').replace(/\s+/g, ' ').trim();
-  return { ...e, payee: s, item: strip(e.item) || '進貨', note: strip(e.note), cat: e.cat || PURCHASE };
+  return { ...e, payee: s, item: strip(e.item) || '進貨', note: strip(e.note), cat: !e.cat || e.cat === PURCHASE ? s : e.cat };
 }
 
 export async function addExpense(input, { by = '', source = 'admin' } = {}) {

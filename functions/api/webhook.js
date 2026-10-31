@@ -227,7 +227,8 @@ const mdOf = (d) => `${+d.slice(5, 7)}/${+d.slice(8, 10)}`;
 const HOWTO = '記帳直接打「品名 金額」就好，例如：\n・油錢 500\n・昨天 紙箱 800\n・10/28 付大成 12000 進貨\n@ 後面可以寫付給誰，例如「進貨 12000 @大成」。\n\n查帳打「今天支出」或「本月支出」。';
 
 // LINE 按鈕最多 13 個：品項分類（ERP 有 35 類）放後面，油錢、薪水這些才按得到
-const byUse = (cats) => [...cats.filter((c) => !c.product), ...cats.filter((c) => c.product)];
+// 舊的品項分類（換成廠商後藏起來的）不出現在按鈕
+const byUse = (cats) => [...cats.filter((c) => !c.product), ...cats.filter((c) => c.product && !c.hidden)];
 
 function savedReply(e, cats, head = '✅ 已記帳') {
   const others = byUse(cats).map((c) => c.name).filter((n) => n !== e.cat).slice(0, 11);
