@@ -206,6 +206,8 @@ export async function saveProducts(input) {
       alias: p.alias === undefined ? aliasList(old.get(id)?.alias) : aliasList(p.alias),
       packs: packList(p.packs === undefined ? old.get(id)?.packs : p.packs, units.includes(p.unit) ? p.unit : units[0]),
       liang: (p.liang === undefined ? old.get(id)?.liang : p.liang) !== false, // 斤的品項可不可以叫到兩
+      code: clean(p.code === undefined ? old.get(id)?.code : p.code, 20), // ERP 產品代號（匯入 ERP 時帶進來，之後匯出給 ERP 用）
+      supplier: clean(p.supplier === undefined ? old.get(id)?.supplier : p.supplier, 20), // 跟哪家廠商進（採買總表依廠商分組）
     };
   });
   for (const p of list) {
@@ -216,6 +218,83 @@ export async function saveProducts(input) {
   }
   await doc('settings/products').set({ items: list });
   return list;
+}
+
+/* ---------- 匯入 ERP 產品（後台品項頁上傳 ERP 匯出的「產品資料」Excel）---------- */
+// rows：[{ code, name, cat, catCode, unit, small, price, supplier }]，畫面讀完 Excel 送來
+// 用 ERP 代號比對：有的就照 ERP 更新品名、分類、單位；還沒代號的舊品項同名同單位就接上代號（單價、叫法、訂單紀錄都留著）；其他新增並上架
+// 分類換成 ERP 的（照類別編號排）。dry＝只算結果給畫面確認；removeOthers＝不在 ERP 檔裡的品項一起刪掉
+const ERP_UNIT = { 台斤: '斤', F公: '公斤' };
+const ERP_SKIP = new Set(['備註', '總金額']); // POS 的特殊行，不是產品
+export async function importErp(input, { dry = true, removeOthers = false } = {}) {
+  if (!Array.isArray(input) || !input.length) throw new UserError('Excel 裡沒有讀到產品，請確認是 ERP 匯出的產品資料');
+  if (input.length > 5000) throw new UserError('產品太多了（最多 5000 項）');
+  const skipped = [], rows = [], seen = new Set();
+  for (const r of input) {
+    const code = clean(r.code, 20), name = clean(r.name, 40), cat = clean(r.cat, 12);
+    const unit = ERP_UNIT[clean(r.unit, 6)] || clean(r.unit, 6);
+    if (!code || !name || seen.has(code)) continue;
+    // 單位是亂碼（0、_41+）的跳過，列給老闆自己補
+    if (ERP_SKIP.has(name) || !cat || !/^[一-鿿]{1,3}$/.test(unit)) { if (!ERP_SKIP.has(name)) skipped.push(name); continue; }
+    seen.add(code);
+    rows.push({ code, name, cat, catCode: clean(r.catCode, 10), unit, supplier: clean(r.supplier, 20), liang: unit !== '斤' || clean(r.small, 4) === '兩', price: Math.max(0, Math.round(+r.price || 0)) });
+  }
+  if (!rows.length) throw new UserError('Excel 裡沒有讀到產品，請確認是 ERP 匯出的產品資料');
+  // ERP 同名的（白米 斤／白米 袋）加單位區分，連單位也一樣就加代號
+  const count = (list, key) => list.reduce((m, x) => m.set(key(x), (m.get(key(x)) || 0) + 1), new Map());
+  const byName = count(rows, (x) => x.name), byNameUnit = count(rows, (x) => x.name + '|' + x.unit);
+  for (const x of rows) {
+    if (byNameUnit.get(x.name + '|' + x.unit) > 1) x.name = `${x.name}（${x.code}）`;
+    else if (byName.get(x.name) > 1) x.name = `${x.name}（${x.unit}）`;
+  }
+
+  await ensureMigrated();
+  const units = await getUnits();
+  const pref = doc('settings/products'), cref = doc('settings/categories'), uref = doc('settings/units');
+  return db().runTransaction(async (tx) => {
+    const [p, c] = await Promise.all([tx.get(pref), tx.get(cref)]);
+    const old = p.data()?.items ?? structuredClone(DEFAULT_PRODUCTS);
+    const oldCats = c.data()?.items ?? CATEGORIES;
+    const withCode = new Map(old.filter((x) => x.code).map((x) => [x.code, x]));
+    const noCode = new Map(old.filter((x) => !x.code).map((x) => [x.name + '|' + x.unit, x]));
+    const used = new Set();
+    let add = 0, update = 0, link = 0;
+    const stamp = rid('p');
+    const list = rows.map((r, i) => {
+      const o = withCode.get(r.code) || noCode.get(r.name + '|' + r.unit);
+      const base = { code: r.code, name: r.name, cat: r.cat, unit: r.unit, liang: r.liang, supplier: r.supplier };
+      if (!o) { add++; return { id: stamp + i.toString(36), ...base, price: r.price, cost: null, priceDate: '', on: true, alias: [], packs: [] }; }
+      used.add(o.id);
+      o.code ? update++ : link++;
+      return { ...o, ...base, packs: packList(o.packs, r.unit) };
+    });
+    const others = old.filter((x) => !used.has(x.id));
+    const keep = removeOthers ? [] : others;
+
+    // 分類：ERP 的照類別編號排，留下來的舊品項還在用的分類放後面
+    const erpCats = [...new Map([...rows].sort((a, b) => a.catCode.localeCompare(b.catCode)).map((r) => [r.cat, 1])).keys()];
+    const cats = [...erpCats, ...oldCats.filter((x) => !erpCats.includes(x) && keep.some((k) => k.cat === x))];
+    for (const k of keep) if (!cats.includes(k.cat)) cats.push(k.cat);
+    // 同一分類裡照筆畫排，比較好找
+    const coll = new Intl.Collator('zh-Hant-TW-u-co-stroke');
+    list.sort((a, b) => cats.indexOf(a.cat) - cats.indexOf(b.cat) || coll.compare(a.name, b.name));
+    const items = [...list, ...keep];
+    // 舊品項跟 ERP 品名撞到（單位不同）：舊的加「（舊）」
+    const names = new Set(list.map((x) => x.name));
+    for (const k of keep) if (names.has(k.name)) k.name = `${k.name}（舊）`;
+
+    const newUnits = [...new Set([...units, ...items.map((x) => x.unit)])];
+    // Firestore 一份文件上限 1MB，品項全部放在 settings/products
+    const size = Buffer.byteLength(JSON.stringify(items));
+    if (size > 900_000) throw new UserError(`品項資料太大（${Math.round(size / 1000)}KB），請先刪掉一些不用的品項再匯入`);
+
+    const summary = { add, update, link, skipped, others: others.map((x) => x.name), removed: removeOthers ? others.length : 0, catCount: cats.length, total: items.length };
+    if (dry) return summary;
+    tx.set(pref, { items });
+    tx.set(cref, { items: cats });
+    if (newUnits.length !== units.length) tx.set(uref, { items: newUnits, v: UNITS_VERSION });
+    return { ...summary, products: items, categories: cats, units: newUnits };
+  });
 }
 
 /* ---------- 報價組 ---------- */
@@ -367,6 +446,8 @@ export async function saveStores(input) {
       on: s.on !== false,
       groupId: clean(s.groupId, 30),
       pay: s.pay === 'cash' ? 'cash' : 'month', // 付款方式：month 月結（月底對帳單一次付）、cash 現結（每次送貨付）
+      // ERP 客戶代號、連鎖店、聯絡人（匯入 ERP 客戶時帶進來）；畫面沒送就保留原本的
+      ...Object.fromEntries(['code', 'chain', 'contact'].map((k) => [k, clean(s[k] === undefined ? old.get(s.id)?.[k] : s[k], 30)])),
       members: old.get(s.id)?.members || [], // 綁定的 LINE 帳號只能用開通／解除改
       ...(old.get(s.id)?.invite ? { invite: old.get(s.id).invite } : {}), // 綁定 QR Code
     };
@@ -392,6 +473,46 @@ export async function saveStores(input) {
 }
 
 // 只改一家店的付款方式（對帳頁直接切換）
+// 匯入 ERP 客戶（後台店家頁上傳 ERP 的「客戶資料一覽表」）
+// rows：[{ code, name, chain, phone, contact }]。照客戶代號比對，沒代號的舊店家同名就接上；新的店家先排在最後一站、月結、合作中
+// 電話 ERP 沒填就不動（老闆可能在後台補過），LINE 綁定、報價組、站號都不動
+export async function importErpStores(input, { dry = true } = {}) {
+  if (!Array.isArray(input) || !input.length) throw new UserError('Excel 裡沒有讀到客戶，請確認是 ERP 的客戶資料一覽表');
+  if (input.length > 2000) throw new UserError('客戶太多了（最多 2000 家）');
+  const old = await getStores();
+  const byCode = new Map(old.filter((s) => s.code).map((s) => [s.code, s]));
+  const byName = new Map(old.filter((s) => !s.code).map((s) => [s.name, s]));
+  const seen = new Set(), list = [];
+  let add = 0, update = 0, link = 0;
+  const stamp = rid('s');
+  for (const [i, r] of input.entries()) {
+    const code = clean(r.code, 30), name = clean(r.name, 30);
+    if (!code || !name || seen.has(code)) continue;
+    seen.add(code);
+    const erp = { code, name, chain: clean(r.chain, 30), contact: clean(r.contact, 30) };
+    const phone = clean(r.phone, 20);
+    const o = byCode.get(code) || byName.get(name);
+    if (o) {
+      o.code ? update++ : link++;
+      byName.delete(o.name);
+      list.push({ ...o, ...erp, phone: phone || o.phone || '' });
+    } else {
+      add++;
+      list.push({ id: stamp + i.toString(36), ...erp, route: 99, phone, address: '', on: true, groupId: '', pay: 'month', members: [] });
+    }
+  }
+  if (!list.length) throw new UserError('Excel 裡沒有讀到客戶，請確認是 ERP 的客戶資料一覽表');
+  const summary = { add, update, link, total: old.length + add };
+  if (dry) return summary;
+  // 一次最多寫 500 筆
+  for (let k = 0; k < list.length; k += 400) {
+    const batch = db().batch();
+    for (const s of list.slice(k, k + 400)) batch.set(doc('stores/' + s.id), s);
+    await batch.commit();
+  }
+  return { ...summary, stores: await getStores() };
+}
+
 export async function setStorePay(sid, pay) {
   const ref = doc('stores/' + clean(sid, 40));
   if (!(await ref.get()).exists) throw new UserError('找不到這家店', 404);
@@ -536,6 +657,14 @@ export async function ordersOfDate(date, { withEmpty = false } = {}) {
 }
 
 // 這家店最近一張（配送日早於 date 的）訂單，用來「照上次叫」
+// 這家店最近常叫的品項（AI 叫貨優先比對這些），叫越多次越前面
+export async function usualPids(sid, n = 20) {
+  const snap = await db().collection('orders').where('storeId', '==', sid).where('date', '<', '9999').orderBy('date', 'desc').limit(n).get();
+  const count = new Map();
+  for (const d of snap.docs) for (const i of d.data().items || []) count.set(i.pid, (count.get(i.pid) || 0) + 1);
+  return [...count].sort((a, b) => b[1] - a[1]).map(([pid]) => pid);
+}
+
 export async function lastOrder(sid, date) {
   const snap = await db().collection('orders').where('storeId', '==', sid).where('date', '<', date).orderBy('date', 'desc').limit(5).get();
   return snap.docs.map((d) => d.data()).find((o) => o.items.length) ?? null;
@@ -547,6 +676,12 @@ export async function monthSoFar(storeId, date) {
 }
 
 // 一整個月每家店每天的金額（讀一份文件）
+// 這個月的所有單（列印明細對帳單、銷售統計用）；空單不算
+export async function ordersOfMonth(month) {
+  const snap = await db().collection('orders').where('date', '>=', month + '-01').where('date', '<=', month + '-31').get();
+  return snap.docs.map((d) => d.data()).filter((o) => o.items?.length);
+}
+
 export async function monthAmounts(month) {
   const amounts = (await data('monthly/' + month))?.amounts || {};
   // 同一天的補單併成一筆
@@ -790,6 +925,7 @@ export async function buyList(date) {
     n.need = roundQty(n.need + it.qty); n.stores++;
   }
   const rank = Object.fromEntries(products.map((p, i) => [p.id, i]));
-  return Object.values(need).map((n) => ({ ...n, bought: roundQty(bought[n.pid] || 0), left: roundQty(Math.max(0, n.need - (bought[n.pid] || 0))) }))
+  const sup = Object.fromEntries(products.map((p) => [p.id, p.supplier || '']));
+  return Object.values(need).map((n) => ({ ...n, supplier: sup[n.pid] || '', bought: roundQty(bought[n.pid] || 0), left: roundQty(Math.max(0, n.need - (bought[n.pid] || 0))) }))
     .sort((a, b) => (rank[a.pid] ?? 999) - (rank[b.pid] ?? 999));
 }

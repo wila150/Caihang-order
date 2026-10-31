@@ -204,8 +204,11 @@ const money = (n) => '$' + Math.round(n).toLocaleString('en-US');
 const mdOf = (d) => `${+d.slice(5, 7)}/${+d.slice(8, 10)}`;
 const HOWTO = '記帳直接打「品名 金額」就好，例如：\n・油錢 500\n・昨天 紙箱 800\n・10/28 付大成 12000 進貨\n@ 後面可以寫付給誰，例如「進貨 12000 @大成」。\n\n查帳打「今天支出」或「本月支出」。';
 
+// LINE 按鈕最多 13 個：品項分類（ERP 有 35 類）放後面，油錢、薪水這些才按得到
+const byUse = (cats) => [...cats.filter((c) => !c.product), ...cats.filter((c) => c.product)];
+
 function savedReply(e, cats, head = '✅ 已記帳') {
-  const others = cats.map((c) => c.name).filter((n) => n !== e.cat).slice(0, 11);
+  const others = byUse(cats).map((c) => c.name).filter((n) => n !== e.cat).slice(0, 11);
   return {
     type: 'text',
     text: `${head}\n${mdOf(e.date)} ${e.item} ${money(e.amount)}${e.payee ? `（${e.payee}）` : ''}${e.note ? `\n備註：${e.note}` : ''}\n分類：${e.cat}${e.cat === ex.OTHER ? '\n分類不對的話點下面改，下次打一樣的字就會記住' : ''}`,
@@ -267,7 +270,7 @@ async function expenseChat({ said, pb, action, store, uid, pick }) {
     return {
       type: 'text',
       text: '要記哪一類？點下面的分類，再打「品名 金額」。\n也可以直接打，例如「高麗菜 1500」「油錢 500」，會自動分類。',
-      quickReply: { items: cats.slice(0, 13).map((c) => ({ type: 'action', action: { type: 'postback', label: c.name.slice(0, 20), data: `action=expick&cat=${encodeURIComponent(c.name)}`, displayText: `記${c.name}` } })) },
+      quickReply: { items: byUse(cats).slice(0, 13).map((c) => ({ type: 'action', action: { type: 'postback', label: c.name.slice(0, 20), data: `action=expick&cat=${encodeURIComponent(c.name)}`, displayText: `記${c.name}` } })) },
     };
   }
   const q = said.match(/^(今天|今日|昨天|本月|這個月|上個月)(支出|花費|記帳|開銷)(明細)?$/);
@@ -311,7 +314,12 @@ async function buyText() {
   if (!left.length) return { type: 'text', text: `✅ ${label(D)} 的 ${list.length} 樣都買齊了！` };
   const pk = Object.fromEntries((await shop.getProducts()).map((p) => [p.id, p.packs?.[0]]));
   const about = (x) => (pk[x.pid] ? `約 ${+(x.left / pk[x.pid].n).toFixed(1)} ${pk[x.pid].unit}` : '');
-  const lines = left.map((x) => `・${x.name} ${qtyText(x.left, x.unit)}${about(x) ? `（${about(x)}）` : ''}${x.bought ? `\n　要 ${qtyText(x.need, x.unit)}，已買 ${qtyText(x.bought, x.unit)}` : ''}`);
+  // 品項有記廠商（匯入 ERP 產品時帶進來）就依廠商分組，照廠商去叫貨
+  const bySup = left.some((x) => x.supplier);
+  if (bySup) left.sort((a, b) => (a.supplier || '\uffff').localeCompare(b.supplier || '\uffff', 'zh-Hant'));
+  let last = null;
+  const head = (x) => { if (!bySup || x.supplier === last) return ''; last = x.supplier; return `【${x.supplier || '其他'}】\n`; };
+  const lines = left.map((x) => `${head(x)}・${x.name} ${qtyText(x.left, x.unit)}${about(x) ? `（${about(x)}）` : ''}${x.bought ? `\n　要 ${qtyText(x.need, x.unit)}，已買 ${qtyText(x.bought, x.unit)}` : ''}`);
   return {
     type: 'text',
     text: `🛒 ${label(D)} 還要買 ${left.length} 樣${done ? `（已買齊 ${done} 樣）` : ''}：\n${lines.slice(0, 40).join('\n')}${lines.length > 40 ? '\n…' : ''}\n\n買了就記帳，例如「${left[0].name}${qtyText(left[0].left, left[0].unit).replace(' ', '')} 金額」，會自動扣掉。`,

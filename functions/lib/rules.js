@@ -14,7 +14,10 @@ export const DEFAULT_RULES = {
   autoJoin: true, // 新店家加好友後自己填店名、地址、電話就開通，不用等老闆審核
   liang: true, // 斤的品項可以叫到兩；關掉就全部只能叫整數斤（個別品項也可以在品項頁關）
   palette: 'garlic', // 整個 App 的配色：garlic 墨綠暖白、blue 科技藍、mint 薄荷綠、gray 商務灰
+  // 列印：on＝要顯示的報表按鈕（見 PRINTS），slip／stmt＝出貨單、對帳單用系統格式或 ERP 格式，address／fax 印在信封，env＝信封尺寸
+  prints: { on: ['buy', 'daily'], slip: 'sys', stmt: 'sys', address: '', fax: '', env: 'c5' },
 };
+export const PRINTS = ['buy', 'supOrder', 'pick', 'purchase', 'daily', 'stmtBrief', 'envelope', 'arSum', 'sales'];
 export const PALETTES = ['garlic', 'blue', 'mint', 'gray'];
 
 let cachedAt = 0;
@@ -44,6 +47,21 @@ export async function saveRules(input) {
   setRules(r);
   cachedAt = Date.now();
   return r;
+}
+
+export async function savePrints(input) {
+  const p = {
+    on: [...new Set((Array.isArray(input.on) ? input.on : []).filter((k) => PRINTS.includes(k)))],
+    slip: input.slip === 'erp' ? 'erp' : 'sys',
+    stmt: input.stmt === 'erp' ? 'erp' : 'sys',
+    address: String(input.address || '').trim().slice(0, 80),
+    fax: String(input.fax || '').trim().slice(0, 20),
+    env: ['c5', 'dl', 'a4'].includes(input.env) ? input.env : 'c5',
+  };
+  await getFirestore().doc('settings/rules').set({ prints: p }, { merge: true });
+  setRules({ prints: p });
+  cachedAt = Date.now();
+  return p;
 }
 
 export async function savePalette(palette) {

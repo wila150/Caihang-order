@@ -377,13 +377,32 @@ h2{font-size:1.15rem;margin:0 0 4px;font-weight:900}
 .r80 .doc .sign{display:block}
 .r80 .doc .sign div{margin-top:10px}
 .pv-hint{color:#fff;font-size:.82rem;text-align:center;margin:10px 0 0}
+/* ERP 格式：跟菜行 ERP 印的一樣，虛線、兩欄、民國年 */
+.doc.erp h3{font-weight:400;letter-spacing:.3em}
+.doc.erp .et{display:grid;grid-template-columns:1fr auto 1fr;align-items:start}.doc.erp .et h3{grid-column:2}.doc.erp .et span{text-align:right;font-size:.9em}
+.doc.erp .eh{display:flex;justify-content:space-between;flex-wrap:wrap;gap:2px 14px;margin:6px 0 2px}
+.doc.erp th,.doc.erp td{border-bottom:0;padding:2px 4px;font-weight:400;white-space:nowrap}
+.doc.erp thead th{border-top:1px dashed #111;border-bottom:1px dashed #111}
+.doc.erp tfoot td{border-top:1px solid #111;font-weight:400;font-size:1em}
+.doc.erp .gap{width:6mm}
+.doc.erp .esub td{border-bottom:1px solid #111}
+.doc.erp .dash{border-top:1px dashed #111;margin-top:4px;padding-top:4px;text-align:right}
+.blocks{columns:2;column-gap:8mm;border-top:1px dashed #111;padding-top:2px}
+.blk{break-inside:avoid;border-bottom:1px dashed #999;padding:2px 0}
+.blk div{display:grid;grid-template-columns:1fr 6.5em 7.5em 2em;gap:4px}.blk .n{text-align:right}
+.env{position:relative;height:var(--envh,150mm);font-size:15px;overflow:hidden}
+.env .from{position:absolute;left:6mm;top:6mm}.env .from b{display:block;font-size:1.5em;font-weight:400;margin:2mm 0 0 6mm}
+.env .stamp{position:absolute;right:46mm;top:4mm;width:22mm;height:26mm;border:1px solid #111;display:grid;place-items:center;text-align:center;font-size:.85em;line-height:2}
+.env .kind{position:absolute;right:6mm;top:4mm;border-collapse:collapse;font-size:.85em}.env .kind td{border:1px solid #111;padding:0 6px;height:6mm;min-width:6mm}
+.env .to{position:absolute;left:20mm;top:calc(var(--envh,150mm)*.38)}.env .to p{margin:2mm 0 0 18mm;font-size:1.05em}.env .to b{display:block;margin:3mm 0 0 18mm;font-size:1.6em;font-weight:400}
+.env .note{position:absolute;right:8mm;bottom:8mm}
 @media print{
   body>*:not(#pv){display:none!important}
   #pv{position:static;display:block;background:#fff;padding:0}
   .pv-bar,.pv-hint{display:none}
   .pv-scroll{padding:0;overflow:visible}
   .paper{width:auto!important;padding:0!important}
-  .doc.break{break-after:page}
+  .doc.break,.env{break-after:page}
   .doc+.doc{border-top:0;margin-top:0;padding-top:0}
   /* 80mm 是一張長紙，不分頁，單和單之間用虛線隔開 */
   .r80 .doc.break{break-after:auto}
@@ -444,6 +463,7 @@ h2{font-size:1.05rem;font-weight:700;margin:0 0 10px}
 .quickadd input,.quickadd select,.psearch{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:9px 12px;min-width:0}
 .quickadd button{border:0;background:var(--leaf);color:#fff;border-radius:10px;padding:0 16px;font-weight:700}
 .psearch{width:100%;margin-bottom:6px}
+.serp{grid-column:1/-1;font-size:.8rem;color:var(--muted)}
 .acat{margin:18px 2px 6px;font-weight:700;font-size:.85rem;color:var(--muted)}
 .acat small{font-size:.8rem}
 .plist{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
@@ -496,6 +516,11 @@ header.top{display:block;padding:calc(14px + env(safe-area-inset-top,0px)) 0 8px
 input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
 .acat{display:flex;justify-content:space-between;align-items:center}
 .acat small{margin-left:8px}
+/* 分類收合：品項多（ERP 兩千多項）時預設收起來，點分類名稱展開 */
+.cfold{all:unset;cursor:pointer;flex:1;display:flex;align-items:center;gap:6px;padding:6px 0}
+.cfold::before{content:"";width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s;margin-right:4px}
+.cfold[aria-expanded="true"]::before{transform:rotate(45deg)}
+.cfold:focus-visible{outline:2px solid var(--leaf);outline-offset:2px}
 .cmenu{border:0;background:none;color:var(--muted);font-size:1.2rem;line-height:1;padding:2px 10px;border-radius:8px}
 .cmenu:hover,.cmenu[aria-expanded="true"]{background:var(--surface);color:var(--ink)}
 .cacts{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px}
@@ -559,7 +584,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
 
   <section id="board">
     <h2>要準備的量</h2>
-    <div class="bar"><button class="pbtn" data-print="buy">列印採買總表</button></div>
+    <div class="bar"><button class="pbtn" data-print="buy" data-pk="buy">列印採買總表</button><button class="pbtn" data-print="supOrder" data-pk="supOrder">列印叫貨單（依廠商）</button><button class="pbtn" data-print="pick" data-pk="pick">列印出貨明細表</button><button class="pbtn" data-print="purchase" data-pk="purchase">列印進貨單</button></div>
     <div class="board" id="boardBox"></div>
     <div id="missing"></div>
   </section>
@@ -572,7 +597,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
 
   <section id="slips" hidden>
     <h2>各店出貨單</h2>
-    <div class="bar"><button class="pbtn" data-print="slips">列印全部出貨單／收據</button><button class="pbtn" data-print="daily">列印當日營業報表</button><button class="pbtn" id="xlsDay">匯出 Excel</button><button class="send" id="receiptAll">全部傳 LINE 收據／出貨單</button></div>
+    <div class="bar"><button class="pbtn" data-print="slips">列印全部出貨單／收據</button><button class="pbtn" data-print="daily" data-pk="daily">列印當日營業報表</button><button class="pbtn" id="xlsDay">匯出 Excel</button><button class="send" id="receiptAll">全部傳 LINE 收據／出貨單</button></div>
     <div id="issueBox"></div>
     <div class="slips" id="slipBox"></div>
     <div class="log" id="logBox"></div>
@@ -581,7 +606,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   <section id="bills" hidden>
     <div class="datebar"><button data-month="-1" aria-label="上個月">‹</button><input type="month" id="month" aria-label="對帳月份"><button data-month="1" aria-label="下個月">›</button></div>
     <h2 id="billTitle">對帳</h2>
-    <div class="bar"><button class="pbtn" data-print="month">列印應收總表</button><button class="pbtn" id="xlsBills">匯出 Excel</button></div>
+    <div class="bar"><button class="pbtn" data-print="month">列印應收總表</button><button class="pbtn" data-print="stmtAll">列印全部對帳單</button><button class="pbtn" data-print="stmtBrief" data-pk="stmtBrief">列印客戶對帳單</button><button class="pbtn" data-print="envelope" data-pk="envelope">列印信封</button><button class="pbtn" data-print="arSum" data-pk="arSum">列印客戶帳款統計表</button><button class="pbtn" data-print="sales" data-pk="sales">列印客戶產品銷售統計表</button><button class="pbtn" id="xlsBills">匯出 Excel</button></div>
     <div class="sumline" id="billSum"></div>
     <div id="billBox"></div>
   </section>
@@ -600,6 +625,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
 
   <section id="admin" hidden>
     <input id="pSearch" class="psearch" type="search" placeholder="搜尋品項或叫法" aria-label="搜尋品項">
+    <div class="bar"><button class="pbtn" type="button" id="erpBtn">匯入 ERP 產品</button><input type="file" id="erpFile" accept=".xlsx,.xls" hidden></div>
     <div id="adminList"></div>
     <div class="addcat"><input id="newCat" placeholder="＋ 新增分類，例如：醬料" maxlength="12" aria-label="新分類名稱"><button id="addCat" type="button">新增分類</button></div>
     <div class="savebar"><button class="ok" id="saveP" disabled>儲存品項</button><span id="pDirty"></span></div>
@@ -623,6 +649,17 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
     </div></details>
     </div>
     <div id="userBox">
+    <details class="sgrp"><summary><svg class="si" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><span class="st">列印<small id="hPrints"></small></span><svg class="sc" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></summary><div class="sgb">
+    <form class="addform rules" id="printsForm" onsubmit="return false">
+      <fieldset class="wds"><legend>要顯示哪些列印按鈕</legend><div id="pkList"></div></fieldset>
+      <label>出貨單格式<select id="pSlip"><option value="sys">系統格式（品名、數量、單價、金額）</option><option value="erp">ERP 格式（公司寶號、單號、民國年、兩欄）</option></select></label>
+      <label>對帳單格式<select id="pStmt"><option value="sys">系統格式（每天一筆金額）</option><option value="erp">ERP 格式（每張單的品項明細）</option></select></label>
+      <label>商店地址（印在信封寄件人）<input id="pAddr" maxlength="80" placeholder="例如 臺中市太平區…"></label>
+      <label>傳真（印在信封）<input id="pFax" maxlength="20"></label>
+      <label>信封尺寸<select id="pEnv"><option value="c5">中型 229×162mm</option><option value="dl">長型 220×110mm</option><option value="a4">印在 A4 紙上</option></select></label>
+      <button id="savePrints" type="button">儲存</button>
+    </form>
+    </div></details>
     <details class="sgrp"><summary><svg class="si" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="st">後台帳號<small id="hUsers"></small></span><svg class="sc" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></summary><div class="sgb">
     <form class="addform" id="userForm" onsubmit="return false">
       <label>Google 帳號 Email<input id="uEmail" type="email" autocomplete="off" placeholder="例如 xxx@gmail.com"></label>
@@ -646,7 +683,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
     </div>
     <details id="devBox" class="devbox" hidden>
       <summary>工程師</summary>
-      <p class="sub">測試期間用。<b>重置測試資料</b>會刪掉所有訂單、配送單確認、單價、對帳、成本和 AI 紀錄；品項、店家、LINE 綁定和帳號會保留。刪掉就救不回來（除了每日備份）。</p>
+      <p class="esub">測試期間用。<b>重置測試資料</b>會刪掉所有訂單、配送單確認、單價、對帳、成本和 AI 紀錄；品項、店家、LINE 綁定和帳號會保留。刪掉就救不回來（除了每日備份）。</p>
       <button id="resetData" type="button" class="danger">重置測試資料</button>
     </details>
   </section>
@@ -654,6 +691,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   <section id="stores" hidden>
     <div id="pendBox"></div>
     <h2>店家與配送路線</h2>
+    <div class="bar"><button class="pbtn" type="button" id="erpSBtn">匯入 ERP 客戶</button><input type="file" id="erpSFile" accept=".xlsx,.xls" hidden></div>
     <div id="storeList"></div>
     <div class="savebar"><button class="pbtn" id="addS">＋ 新增店家</button><button class="ok" id="saveS" disabled>儲存店家</button><span id="sDirty"></span></div>
 
@@ -667,7 +705,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   <div class="aeimg" id="aeImg"></div>
   <div class="aeform">
     <h3 id="aeTitle"></h3>
-    <p class="sub" id="aeHint"></p>
+    <p class="esub" id="aeHint"></p>
     <div class="unk" id="aeUnk"></div>
     <div id="aeList"></div>
     <div class="aefind"><input id="aeFind" type="search" enterkeyhint="done" autocomplete="off" placeholder="＋ 打品名加品項，例如 高麗菜 3" aria-label="打品名加品項"><div class="aehits" id="aeHits"></div></div>
@@ -803,7 +841,10 @@ function renderAll(){
   const tabs={prices:may('prices'),bills:may('bills'),report:may('bills'),ai:may('editOrders'),admin:may('products'),stores:may('stores'),};
   document.querySelectorAll('nav.tabs button').forEach(b=>{b.hidden=tabs[b.dataset.tab]===false});
   if(tabs[tab]===false)showTab('board');
-  document.querySelector('[data-print="daily"]').hidden=!hasPrice();
+  // 列印按鈕：設定頁「列印」勾的才顯示
+  document.querySelectorAll('[data-pk]').forEach(b=>{b.hidden=!prOn(b.dataset.pk)});
+  document.querySelector('[data-print="daily"]').hidden||=!hasPrice();
+  document.querySelector('[data-print="purchase"]').hidden||=!may('prices');
   $('receiptAll').hidden=!may('statement');
   $('slips').classList.toggle('ro',!may('editOrders'));
   $('shopName').textContent=D.shop.name+' 叫貨後台';
@@ -824,7 +865,7 @@ function renderAll(){
   $('unitsSet').hidden=!may('products');
   if(may('stores'))renderStores();
   $('userBox').hidden=$('rulesBox').hidden=$('palSet').hidden=!may('users');
-  if(may('users')){renderRules();renderPalettes()}
+  if(may('users')){renderRules();renderPalettes();renderPrints()}
   if(may('users'))renderUsers();
   $('devBox').hidden=!D.me.engineer;
 }
@@ -840,19 +881,25 @@ const packText=p=>Array.isArray(p.packs)?p.packs.map(k=>`${k.unit}=${k.n}`).join
 const packHint=(q,p)=>{const k=Array.isArray(p?.packs)&&p.packs[0];return k&&q>0?`約 ${+(q/k.n).toFixed(1)} ${k.unit}`:''};
 // 採買進度：已買多少（後台填，或老闆在 LINE 記帳「高麗菜20斤 5000」自動加）
 let onlyLeft=false;
+// 依分類或依廠商分組（品項有記廠商才能切，匯入 ERP 產品時帶進來）；記在這台裝置
+const hasSup=()=>D.products.some(p=>p.supplier);
+const bySup=()=>hasSup()&&localStorage.getItem('buyBy')==='sup';
+const grpOf=(pid,pm)=>bySup()?(pm[pid]?.supplier||'其他廠商'):(pm[pid]?.cat||'其他');
+// 依廠商時同一家排在一起（筆畫順），廠商裡面照原本的分類順序
+const grouped=(T,pm)=>bySup()?[...T].sort((a,b)=>(pm[a.pid]?.supplier?0:1)-(pm[b.pid]?.supplier?0:1)||grpOf(a.pid,pm).localeCompare(grpOf(b.pid,pm),'zh-Hant-TW-u-co-stroke')):T;
 const boughtOf=pid=>+(D.bought?.[pid]||0);
 function renderBoard(){
   const T=totals(),sm=SM(),pm=PM();
   const leftOf=t=>Math.max(0,Math.round((t.qty-boughtOf(t.pid))*10000)/10000);
   const nLeft=T.filter(t=>leftOf(t)>0).length,anyBought=T.some(t=>boughtOf(t.pid)>0);
   let h=`<div class="board-head"><b>${md(D.date)} 採買單</b><span>${D.orders.length} 家店，${T.length} 個品項</span></div>`;
-  if(T.length)h+=`<div class="buybar"><span>${nLeft?`還要買 <b>${nLeft}</b> 樣`:'✅ 全部買齊了'}${anyBought&&nLeft?`・已買齊 ${T.length-nLeft} 樣`:''}</span><button class="pbtn" data-onlyleft="1" aria-pressed="${onlyLeft}">${onlyLeft?'顯示全部':'只看還沒買齊'}</button></div>`;
+  if(T.length)h+=`<div class="buybar"><span>${nLeft?`還要買 <b>${nLeft}</b> 樣`:'✅ 全部買齊了'}${anyBought&&nLeft?`・已買齊 ${T.length-nLeft} 樣`:''}</span><button class="pbtn" data-onlyleft="1" aria-pressed="${onlyLeft}">${onlyLeft?'顯示全部':'只看還沒買齊'}</button>${hasSup()?`<button class="pbtn" data-buyby="1">${bySup()?'改依分類':'改依廠商'}</button>`:''}</div>`;
   if(!T.length)h+=`<p style="padding:16px 6px;color:var(--chalk-dim)">還沒有店家叫貨。</p>`;
   let last='';
-  T.forEach(t=>{
+  grouped(T,pm).forEach(t=>{
     const left=leftOf(t),got=boughtOf(t.pid);
     if(onlyLeft&&!left)return;
-    const c=pm[t.pid]?.cat||'其他';
+    const c=grpOf(t.pid,pm);
     if(c!==last){h+=`<div class="bcat">${esc(c)}</div>`;last=c}
     const open=openRow===t.pid;
     const st=!got?'':!left?'<em class="bok">✓ 買齊</em>':`<em class="bleft">已買 ${esc(qtyText(got,t.unit))}・還要 ${esc(qtyText(left,t.unit))}${packHint(left,pm[t.pid])?`（${packHint(left,pm[t.pid])}）`:''}</em>`;
@@ -927,8 +974,11 @@ async function sendReceipts(ids){
 async function sigImg(sid){try{return (await api('GET',null,`?sig=${D.date}_${sid}`)).signature?.png||''}catch{return ''}}
 
 /* ---------- Excel ---------- */
-async function xlsx(filename,sheets){
+async function loadXLSX(){
   if(!window.XLSX){await new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.onload=ok;sc.onerror=no;document.head.appendChild(sc)}).catch(()=>{toast('Excel 元件載入失敗');throw 0})}
+}
+async function xlsx(filename,sheets){
+  await loadXLSX();
   const wb=XLSX.utils.book_new();
   for(const [name,rows] of Object.entries(sheets)){const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=rows[0].map((_,i)=>({wch:Math.max(8,...rows.map(r=>String(r[i]??'').length*2))}));XLSX.utils.book_append_sheet(wb,ws,name.slice(0,31))}
   XLSX.writeFile(wb,filename);
@@ -945,6 +995,45 @@ function xlsBills(){
   const rows=[head,...D.stores.filter(s=>monthRows(s.id).length).map(s=>{const r=monthRows(s.id),by=Object.fromEntries(r.map(x=>[+x.date.slice(8),x.amount])),t=r.reduce((a,x)=>a+x.amount,0),P=payOf(s.id,t);return [s.name,...Array.from({length:n},(_,i)=>by[i+1]??''),t,P.got,P.left]})];
   const pays=[['收款日','店家','方式','金額','備註','經手人'],...D.stores.flatMap(s=>payOf(s.id,0).list.map(p=>[p.date,s.name,p.method,p.amount,p.note||'',p.by||''])).sort((a,b)=>a[0].localeCompare(b[0]))];
   xlsx(`對帳_${D.month}.xlsx`,{[`${+m}月對帳`]:rows,[`${+m}月收款明細`]:pays});
+}
+// 讀 ERP 匯出的 Excel：前面幾行是公司名稱、標題，找到有 code、name 兩個欄名的那行當表頭；cols＝{ 欄位: 'Excel 欄名' }
+async function readErp(file,cols){
+  await loadXLSX();
+  let aoa;
+  try{const wb=XLSX.read(await file.arrayBuffer());aoa=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''})}catch{toast('這個檔案讀不出來');return null}
+  const h=aoa.findIndex(r=>r.includes(cols.code)&&r.includes(cols.name));
+  if(h<0){toast(`找不到「${cols.code}」「${cols.name}」欄位，請用 ERP 匯出的檔案`);return null}
+  return aoa.slice(h+1).map(r=>Object.fromEntries(Object.entries(cols).map(([f,n])=>{const i=aoa[h].indexOf(n);return [f,i<0?'':String(r[i]).trim()]}))).filter(r=>r.code&&r.name);
+}
+// 匯入 ERP 產品：先試算給老闆確認再寫入（用產品代號比對，可以重複匯入）
+async function importErp(file){
+  if(pDirty){toast('請先按「儲存品項」');return}
+  const rows=await readErp(file,{code:'產品代號',name:'產品名稱',catCode:'類別代碼',cat:'類別名稱',unit:'大單位',small:'小單位',price:'建議售價',supplier:'供應商名稱'});
+  if(!rows)return;
+  try{
+    const s=await api('POST',{action:'importErp',rows});
+    let msg=`ERP 檔有 ${rows.length} 項產品：\n・新增 ${s.add} 項（直接上架）\n・更新 ${s.update} 項\n・接上原本的品項 ${s.link} 項（單價、叫法都保留）\n分類會改成 ERP 的 ${s.catCount} 類。`;
+    if(s.skipped.length)msg+=`\n\n單位看不懂、跳過 ${s.skipped.length} 項（${s.skipped.slice(0,5).join('、')}），要的話再自己新增。`;
+    if(!confirm(msg+'\n\n確定匯入？'))return;
+    const removeOthers=s.others.length>0&&confirm(`另外有 ${s.others.length} 個品項不在 ERP 檔裡：\n${s.others.slice(0,10).join('、')}${s.others.length>10?'…':''}\n\n按「確定」刪掉這些，按「取消」保留。舊訂單紀錄不受影響。`);
+    toast('匯入中…');
+    const j=await api('POST',{action:'importErp',rows,dry:false,removeOthers});
+    openP=-1;openCat=-1;await load();
+    toast(`已匯入，現在共 ${j.total} 個品項${j.removed?`（刪掉 ${j.removed} 個）`:''}`);
+  }catch(e){toast(e.message)}
+}
+// 匯入 ERP 客戶：客戶資料一覽表（客戶代號、客戶簡稱、連鎖店、電話、聯絡人）
+async function importErpStores(file){
+  if(sDirty){toast('請先按「儲存店家」');return}
+  const rows=(await readErp(file,{code:'客戶代號',name:'客戶簡稱',chain:'連鎖店',tel:'電話一',mobile:'手機',contact:'聯絡人'}))?.map(r=>({...r,phone:r.tel||r.mobile}));
+  if(!rows)return;
+  try{
+    const s=await api('POST',{action:'importErpStores',rows});
+    if(!confirm(`ERP 檔有 ${rows.length} 家客戶：\n・新增 ${s.add} 家（合作中、月結，站號先排最後）\n・更新 ${s.update} 家\n・接上原本的店家 ${s.link} 家（LINE 綁定、報價組都保留）\n\n確定匯入？`))return;
+    toast('匯入中…');
+    const j=await api('POST',{action:'importErpStores',rows,dry:false});
+    await load();toast(`已匯入，現在共 ${j.stores.length} 家店`);
+  }catch(e){toast(e.message)}
 }
 function xlsReport(){
   if(!R)return;
@@ -1070,14 +1159,21 @@ function payBox(s,P){
 /* ---------- 品項 ---------- */
 // 品項：平常只看品名、單位、上架開關；點一下才展開編輯
 let openP=-1,openCat=-1;
+// 展開中的分類（記在這台裝置）；品項少的時候全部展開，跟以前一樣
+let openCats=new Set(JSON.parse(localStorage.getItem('openCats')||'[]'));
+const foldCats=()=>P.length>60;
+function toggleCat(c){openCats.has(c)?openCats.delete(c):openCats.add(c);try{localStorage.setItem('openCats',JSON.stringify([...openCats]))}catch{}openP=-1;renderProducts()}
 function renderProducts(){
   const q=($('pSearch')?.value||'').trim();
   const hit=p=>!q||p.name.includes(q)||aliasArr(p).some(a=>a.includes(q));
   $('adminList').innerHTML=D.categories.map((c,ci)=>{
     const all=P.map((p,i)=>({p,i})).filter(x=>x.p.cat===c),items=all.filter(x=>hit(x.p));if(q&&!items.length)return '';
     const cu=commonUnit(c);
-    const head=`<div class="acat"><span>${esc(c)}<small>${all.filter(x=>x.p.on).length}/${all.length}</small></span><button class="cmenu" data-cmenu="${ci}" aria-expanded="${openCat===ci}" aria-label="${esc(c)} 分類設定">⋯</button></div>`+
+    // 搜尋時有符合的分類自動展開
+    const open=q||!foldCats()||openCats.has(c);
+    const head=`<div class="acat">${foldCats()&&!q?`<button class="cfold" data-cfold="${ci}" aria-expanded="${open}">${esc(c)}<small>${all.filter(x=>x.p.on).length}/${all.length}</small></button>`:`<span>${esc(c)}<small>${all.filter(x=>x.p.on).length}/${all.length}</small></span>`}<button class="cmenu" data-cmenu="${ci}" aria-expanded="${openCat===ci}" aria-label="${esc(c)} 分類設定">⋯</button></div>`+
       (openCat===ci?`<div class="cacts"><button data-cren="${ci}">改名</button><button data-cmove="${ci}" data-d="-1" ${ci?'':'disabled'}>上移</button><button data-cmove="${ci}" data-d="1" ${ci<D.categories.length-1?'':'disabled'}>下移</button><button class="danger" data-cdel="${esc(c)}">刪除分類</button></div>`:'');
+    if(!open)return head;
     const foot=q?'':`<div class="padd"><input data-newp="${ci}" placeholder="＋ 在「${esc(c)}」新增品項" maxlength="40" aria-label="在${esc(c)}新增品項"><select data-newu="${ci}" aria-label="單位">${D.units.map(u=>`<option ${u===cu?'selected':''}>${esc(u)}</option>`).join('')}</select><button data-addp="${ci}">新增</button></div>`;
     return head+`<div class="plist">`+items.map(({p,i})=>{
       const n=aliasArr(p).length+D.stores.reduce((a,s)=>a+(D.storeAliases?.[s.id]||[]).filter(x=>x.pid===p.id).length,0);
@@ -1161,6 +1257,7 @@ function renderStores(){
     <input type="text" data-sf="name" data-i="${i}" value="${esc(s.name)}" placeholder="店名" aria-label="店名">
     <input type="text" data-sf="phone" data-i="${i}" value="${esc(s.phone)}" placeholder="電話" aria-label="電話">
     <input type="text" class="wide" data-sf="address" data-i="${i}" value="${esc(s.address)}" placeholder="送貨地址" aria-label="送貨地址" style="grid-column:1/4">
+    ${s.code?`<div class="serp">ERP ${esc(s.code)}${s.chain?`・連鎖 ${esc(s.chain)}`:''}${s.contact?`・聯絡人 ${esc(s.contact)}`:''}</div>`:''}
     <div class="mem">LINE：${s.members?.length?s.members.map(m=>`<span>${esc(m.name||'未命名')}<button data-unbind="${m.userId}" aria-label="解除 ${esc(m.name)}">✕</button></span>`).join(''):'還沒綁定'}${s.id&&D.stores.some(x=>x.id===s.id)?`<button class="invbtn" data-invite="${s.id}">＋ 邀請綁定</button>`:''}
       <select data-sf="groupId" data-i="${i}" aria-label="${esc(s.name)} 的報價組"><option value="">基本價</option>${(D.priceGroups||[]).map(g=>`<option value="${g.id}" ${g.id===s.groupId?'selected':''}>${esc(g.name)}</option>`).join('')}</select>
       <select data-sf="pay" data-i="${i}" aria-label="${esc(s.name)} 付款方式"><option value="month" ${s.pay!=='cash'?'selected':''}>月結</option><option value="cash" ${s.pay==='cash'?'selected':''}>現結</option></select>
@@ -1331,7 +1428,7 @@ function expHTML(){
     return h+`<div class="exp"><span>${esc(e.item)}<em>${[e.buy?.cost!=null&&`進價 $${e.buy.cost}/${e.buy.unit}`,e.payee&&'付給 '+e.payee,e.note,e.source==='line'?'LINE':'',e.by].filter(Boolean).map(esc).join('・')}</em></span>
     <select data-expcat="${e.id}" aria-label="${esc(e.item)} 分類">${opt(e.cat)}</select><b>${money(e.amount)}</b><span class="expact"><button class="x" data-expedit="${e.id}" aria-label="編輯 ${esc(e.item)}">✎</button><button class="x" data-expdel="${e.id}" aria-label="刪除 ${esc(e.item)}">✕</button></span></div>`}).join('');
   return `<h2>記帳（支出）</h2>
-  <p class="sub">老闆的 LINE 也能記：直接打「油錢 500」「昨天 紙箱 800」「進貨 12000 @大成」。打「本月支出」可以查帳。</p>
+  <p class="esub">老闆的 LINE 也能記：直接打「油錢 500」「昨天 紙箱 800」「進貨 12000 @大成」。打「本月支出」可以查帳。</p>
   <form class="expf" id="expForm" onsubmit="return false">
     <input type="date" name="date" value="${def}" aria-label="日期">
     <select name="cat" aria-label="分類"><option value="">自動分類</option>${opt('')}</select>
@@ -1342,10 +1439,10 @@ function expHTML(){
     <button class="send" id="expAdd" type="button">記一筆</button>
   </form>
   ${L.length?`<div class="expsum"><span><b>${+R.month.slice(5)} 月 ${L.length} 筆 ${money(tot)}</b></span>${Object.entries(by).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<span>${esc(c)} ${money(v)}</span>`).join('')}</div>
-  ${pur?`<p class="sub">進貨記了 ${money(pur)}：那天有在「單價」頁填進價的話，進貨成本用進價算，這裡只列出來不重複扣；沒填進價的日子，就用這裡記的進貨當進貨成本。</p>`:''}
+  ${pur?`<p class="esub">進貨記了 ${money(pur)}：那天有在「單價」頁填進價的話，進貨成本用進價算，這裡只列出來不重複扣；沒填進價的日子，就用這裡記的進貨當進貨成本。</p>`:''}
   <div class="scroll" style="max-height:420px;overflow:auto">${rows}</div>`:'<div class="empty">這個月還沒有記帳</div>'}
   <details ${ecOpen?'open':''} id="ecBox" style="margin-top:10px"><summary>分類與關鍵字</summary>
-    <p class="sub">打的字裡有關鍵字，就自動分到那一類。分類不對時在上面改，系統會自動記住。進貨的分類跟「品項」頁的分類一樣，品名會自動當關鍵字；要改分類名稱請到品項頁。</p>
+    <p class="esub">打的字裡有關鍵字，就自動分到那一類。分類不對時在上面改，系統會自動記住。進貨的分類跟「品項」頁的分類一樣，品名會自動當關鍵字；要改分類名稱請到品項頁。</p>
     <div class="ecats" id="ecats">${cats.map((c,i)=>{const fixed=c.product||c.name==='雜支';return `<label><input data-ecn="${i}" value="${esc(c.name)}" maxlength="12" ${fixed?'readonly':''} aria-label="分類名稱"><input data-ecw="${i}" value="${esc(c.words.join('、'))}" placeholder="關鍵字，用、隔開" aria-label="${esc(c.name)} 關鍵字">${fixed?'<span></span>':`<button type="button" class="x" data-ecdel="${i}" aria-label="刪除分類 ${esc(c.name)}">✕</button>`}</label>`}).join('')}</div>
     <div class="bar" style="margin-top:8px"><button class="pbtn" type="button" id="ecAdd">＋ 新增分類</button><button class="send" type="button" id="ecSave">儲存分類</button></div>
   </details>`;
@@ -1357,7 +1454,7 @@ function buyStatHTML(){
   const tq=(v,u)=>v?esc(qtyText(v,u)):'';
   let last='';
   return `<h2>進貨統計</h2>
-  <p class="sub">「已買」是採買總表的已買數量，「多買／少買」只比有記已買的那幾天；「記帳」是有寫數量的進貨（例如「高麗菜20斤 5000」），才算得出平均進價。</p>
+  <p class="esub">「已買」是採買總表的已買數量，「多買／少買」只比有記已買的那幾天；「記帳」是有寫數量的進貨（例如「高麗菜20斤 5000」），才算得出平均進價。</p>
   <div class="rwrap"><table class="rtable"><thead><tr><th>品項</th><th>店家叫</th><th>已買</th><th>多買／少買</th><th>記帳數量</th><th>記帳金額</th><th>平均進價</th><th>最低～最高</th></tr></thead><tbody>
   ${L.map(r=>{const d=r.diff,h=r.cat!==last?`<tr class="bcat-row"><td colspan="8">${esc(r.cat||'其他')}</td></tr>`:'';last=r.cat;
     return h+`<tr><td>${esc(r.name)}</td><td>${tq(r.ordered,r.unit)}</td><td>${tq(r.bought,r.unit)}</td><td class="${r.bought&&d<0?'neg':''}">${r.bought?(d>0?'多 '+esc(qtyText(d,r.unit)):d<0?'少 '+esc(qtyText(-d,r.unit)):'剛好'):''}</td><td>${tq(r.qty,r.unit)}</td><td>${r.amount?money(r.amount):''}</td><td>${r.avg!=null?`$${r.avg}/${esc(r.unit)}`:''}</td><td>${r.min!=null&&r.max!==r.min?`$${r.min}～$${r.max}`:''}</td></tr>`}).join('')}
@@ -1544,11 +1641,11 @@ function docSlip(k){
   <div class="foot">本單兼收據。${esc(termsOf(s))}${D.shop.phone?`　電話 ${esc(D.shop.phone)}`:''}</div></div>`;
 }
 function docBuy(){
-  const T=totals(),sm=SM();
+  const pm=PM(),T=grouped(totals(),pm),sm=SM();let last='';
   return `<div class="doc"><h3>${esc(SHOPN())}　採買總表</h3>
   <div class="meta"><span>配送日：${ymdSlash(D.date)}</span><span>${D.orders.length} 家店，${T.length} 個品項</span></div>
   <table><thead><tr><th>品名</th><th class="n">總量</th><th>各店明細</th></tr></thead>
-  <tbody>${T.map(t=>`<tr><td>${esc(t.name)}</td><td class="n"><b>${esc(qtyText(t.qty,t.unit))}</b></td><td>${t.rows.sort((a,b)=>(sm[a.sid]?.route||99)-(sm[b.sid]?.route||99)).map(r=>`${esc(sm[r.sid]?.name||'')} ${esc(qtyText(r.qty,t.unit))}`).join('、')}</td></tr>`).join('')}</tbody></table>
+  <tbody>${T.map(t=>`${bySup()&&grpOf(t.pid,pm)!==last?`<tr><th colspan="3">${esc(last=grpOf(t.pid,pm))}</th></tr>`:''}<tr><td>${esc(t.name)}</td><td class="n"><b>${esc(qtyText(t.qty,t.unit))}</b></td><td>${t.rows.sort((a,b)=>(sm[a.sid]?.route||99)-(sm[b.sid]?.route||99)).map(r=>`${esc(sm[r.sid]?.name||'')} ${esc(qtyText(r.qty,t.unit))}`).join('、')}</td></tr>`).join('')}</tbody></table>
   <div class="foot">□ 已備齊確認　　備貨人：＿＿＿＿＿＿</div></div>`;
 }
 function docDaily(){
@@ -1584,15 +1681,158 @@ function docMonth(){
   <table><thead><tr><th>店家</th><th class="n">送貨天數</th><th class="n">應收</th><th class="n">已收</th><th class="n">未收</th></tr></thead>
   <tbody>${rows}</tbody><tfoot><tr><td colspan="2">合計</td><td class="n">${money(sum)}</td><td class="n">${money(got)}</td><td class="n">${money(sum-got)}</td></tr></tfoot></table></div>`;
 }
+/* ---------- ERP 格式的單子（照菜行 ERP 印的樣子）---------- */
+const PR=()=>({on:['buy','daily'],slip:'sys',stmt:'sys',address:'',fax:'',env:'c5',...(D.rules?.prints||{})});
+const prOn=k=>PR().on.includes(k);
+const PKS=[['buy','採買總表'],['supOrder','叫貨單（依廠商）'],['pick','出貨明細表（撿貨）'],['purchase','進貨單'],['daily','當日營業報表'],['stmtBrief','客戶對帳單（只列單號金額）'],['envelope','信封'],['arSum','客戶帳款統計表'],['sales','客戶產品銷售統計表']];
+const roc=d=>`${+d.slice(0,4)-1911}/${d.slice(5,7)}/${d.slice(8,10)}`;
+const rocNow=()=>{const t=new Date(Date.now()+8*3600e3).toISOString();return `${roc(t)} ${t.slice(11,16)}`};
+const n0=n=>Math.round(n).toLocaleString('en-US');
+// 單號：民國年月日＋店家序號（照店家建立順序，改站號也不會變）；補單後面加 -2
+const slipNo=(date,sid,seq=1)=>{const i=[...D.stores].sort((a,b)=>a.id.localeCompare(b.id)).findIndex(x=>x.id===sid)+1;return `${roc(date).replaceAll('/','')}${String(i).padStart(3,'0')}${seq>1?'-'+seq:''}`};
+const sname=s=>`${esc(s.name)}${s.code?`(${esc(s.code)})`:''}`;
+const byRoute=sm=>(a,b)=>(sm[a.sid]?.route||99)-(sm[b.sid]?.route||99);
+const stroke=(a,b)=>a.localeCompare(b,'zh-Hant-TW-u-co-stroke');
+// 兩欄表格：左邊排完再排右邊（跟 ERP 一樣）；cell 回傳一列的 <td>，k＝一欄幾格
+function twoCol(arr,cell,k,head){
+  const h=Math.ceil(arr.length/2);
+  return `<table><thead><tr>${head}<th class="gap"></th>${head}</tr></thead><tbody>${Array.from({length:h},(_,r)=>`<tr>${cell(arr[r],r)}<td class="gap"></td>${arr[r+h]?cell(arr[r+h],r+h):`<td colspan="${k}"></td>`}</tr>`).join('')}</tbody></table>`;
+}
+// 品項一塊：第一行品名，下面每家店一行（數量、店名、站號）
+const blk=(t,sm)=>`<div class="blk">${t.rows.slice().sort(byRoute(sm)).map((r,i)=>`<div><span>${i?'':esc(t.name)}</span><span class="n">${esc(qtyText(r.qty,t.unit))}</span><span>${esc(sm[r.sid]?.name||'')}</span><span class="n">${sm[r.sid]?.route??''}</span></div>`).join('')}</div>`;
+const supOf=(pid,pm)=>pm[pid]?.supplier||'其他廠商';
+function bySupplier(T,pm){
+  const g={};T.forEach(t=>(g[supOf(t.pid,pm)]??=[]).push(t));
+  return Object.entries(g).sort(([a],[b])=>(a==='其他廠商')-(b==='其他廠商')||stroke(a,b));
+}
+// 叫貨單：每家廠商一頁，照這張去跟廠商叫貨
+function docSupOrder(){
+  const pm=PM(),sm=SM();
+  return bySupplier(totals(),pm).map(([k,T])=>`<div class="doc erp break"><h3>叫 貨 單</h3>
+  <div class="eh"><span>廠商名稱：${esc(k)}</span><span>配送日：${roc(D.date)}</span><span>列印時間：${rocNow()}</span></div>
+  <div class="blocks">${T.map(t=>blk(t,sm)).join('')}</div></div>`).join('');
+}
+// 出貨明細表：全部品項、每家店各多少，撿貨用
+function docPick(){
+  const sm=SM();
+  return `<div class="doc erp"><h3>出貨明細表</h3>
+  <div class="eh"><span>${esc(SHOPN())}</span><span>出貨日期：${roc(D.date)}</span><span>${D.orders.length} 家店，${totals().length} 個品項</span></div>
+  <div class="blocks">${totals().map(t=>blk(t,sm)).join('')}</div></div>`;
+}
+// 進貨單：每家廠商一張，數量用「已買」（沒填就用要叫的量），單價用當天進價
+function docPurchase(){
+  const pm=PM();
+  return bySupplier(totals(),pm).map(([k,T],x)=>{
+    let sum=0;
+    const rows=T.map(t=>{const q=boughtOf(t.pid)||t.qty,c=D.dayCosts?.[t.pid]??pm[t.pid]?.cost;if(c!=null)sum+=q*c;return {name:t.name,q:qtyText(q,t.unit),c,a:c!=null?q*c:null}});
+    return `<div class="doc erp break"><h3>進 貨 單</h3>
+    <div class="eh"><span>公司寶號：${esc(k)}</span><span>日期：${roc(D.date)}</span><span>單號：${roc(D.date).replaceAll('/','')}${String(x+1).padStart(3,'0')}</span></div>
+    ${twoCol(rows,(r,i)=>`<td class="n">${i+1}</td><td>${esc(r.name)}</td><td class="n">${esc(r.q)}</td><td class="n">${r.c!=null?(+r.c).toFixed(2):''}</td><td class="n">${r.a!=null?n0(r.a):''}</td>`,5,'<th class="n">項次</th><th>產品名稱</th><th class="n">數量</th><th class="n">單價</th><th class="n">金額</th>')}
+    <div class="dash">金額：${n0(sum)}${rows.some(r=>r.c==null)?'（有品項沒填進價）':''}</div></div>`}).join('');
+}
+// ERP 格式出貨單
+function docSlipErp(k){
+  const s=SM()[sidOf(k)],o=orderOf(k),items=sortItems(o.items);
+  const priced=hasPrice()&&!o.items.some(i=>!(i.pid in D.dayPrices));
+  const cell=(i,n)=>`<td class="n">${n+1}</td><td>${esc(i.name)}</td><td class="n">${billQty(i)?esc(qtyText(billQty(i),i.unit)):'缺貨'}</td><td class="n">${priced?(+i.price).toFixed(2):''}</td><td class="n">${priced?n0(billQty(i)*i.price):''}</td>`;
+  return `<div class="doc erp break"><div class="et"><span></span><h3>${esc(SHOPN())}</h3><span>${D.shop.phone?`Tel:${esc(D.shop.phone)}`:''}</span></div>
+  <div class="eh"><span>公司寶號：${sname(s)}</span><span>日期：${roc(D.date)}</span><span>單號：${slipNo(D.date,s.id,seqOf(k))}</span><span>金額：${priced?n0(amount(o)):''}</span></div>
+  ${twoCol(items,cell,5,'<th class="n">項次</th><th>產品名稱</th><th class="n">數量</th><th class="n">單價</th><th class="n">金額</th>')}
+  <div class="sign" style="border-top:1px dashed #111;padding-top:6px"><div>送貨人：＿＿＿＿＿＿</div>${signLine(k)}</div></div>`;
+}
+const monthSpan=()=>{const [y,m]=D.month.split('-');const last=new Date(Date.UTC(+y,+m,0)).getUTCDate();return `${roc(D.month+'-01')} ~ ${roc(D.month+'-'+String(last).padStart(2,'0'))}`};
+// 整個月的單（明細對帳單、銷售統計表才要），同一個月只載一次
+let MO=null;
+async function monthOrders(){if(MO?.month!==D.month)MO=await api('GET',null,'?orders='+D.month);return MO.orders}
+// ERP 格式對帳單：每張單的品項明細，每張單最後一行是小計
+function docStmtErp(s,orders){
+  const mine=orders.filter(o=>o.storeId===s.id).sort((a,b)=>a.date.localeCompare(b.date)||(a.seq||1)-(b.seq||1));
+  let total=0;
+  const body=mine.map(o=>{const its=sortItems(o.items),sub=Math.round(its.reduce((a,i)=>a+billQty(i)*i.price,0));total+=sub;
+    return its.map((i,x)=>`<tr${x===its.length-1?' class="esub"':''}><td>${x?'':roc(o.date)}</td><td>${x?'':slipNo(o.date,s.id,o.seq||1)}</td><td>${esc(i.name)}</td><td class="n">${billQty(i)?esc(qtyText(billQty(i),i.unit)):'缺貨'}</td><td class="n">${(+i.price).toFixed(2)}</td><td class="n">${n0(billQty(i)*i.price)}</td><td class="n">${x===its.length-1?n0(sub):''}</td></tr>`).join('')}).join('');
+  const P=payOf(s.id,total);
+  return `<div class="doc erp break"><h3>${esc(SHOPN())}</h3><h3>對 帳 單</h3><div style="text-align:center">帳款期間：${monthSpan()}</div>
+  <div class="eh"><span>公司寶號：${sname(s)}</span><span>電話：${esc(s.phone||'')}</span></div>
+  <div class="eh"><span>客戶地址：${esc(s.address||'')}</span>${s.contact?`<span>聯絡人：${esc(s.contact)}</span>`:''}</div>
+  <table><thead><tr><th>日期</th><th>單號</th><th>產品名稱</th><th class="n">數量</th><th class="n">單價</th><th class="n">金額</th><th class="n">小計</th></tr></thead><tbody>${body}</tbody>
+  <tfoot><tr><td colspan="6" class="n">合計：</td><td class="n">${n0(total)}</td></tr>${P.got?`<tr><td colspan="6" class="n">已收：</td><td class="n">${n0(P.got)}</td></tr><tr><td colspan="6" class="n">尚欠：</td><td class="n">${n0(P.left)}</td></tr>`:''}</tfoot></table>
+  <div class="foot">${esc(termsOf(s))}</div></div>`;
+}
+// 客戶對帳單：只列每天的單號和金額，給客戶簽收
+function docStmtBrief(s){
+  const r=monthRows(s.id),total=r.reduce((a,x)=>a+x.amount,0);
+  return `<div class="doc erp break"><h3>${esc(SHOPN())}</h3><h3 style="text-decoration:underline">客戶對帳單</h3>
+  <div class="eh"><span>寶號：${sname(s)}</span><span>帳款期間：${monthSpan()}</span></div>
+  ${twoCol(r,(x,i)=>`<td class="n">${i+1}</td><td>${roc(x.date)}</td><td>${slipNo(x.date,s.id)}</td><td class="n">${n0(x.amount)}</td>`,4,'<th class="n">項次</th><th>出貨日期</th><th>出貨單號</th><th class="n">應收帳款</th>')}
+  <div class="dash" style="text-align:left">本期應收帳款合計：<b>${n0(total)}</b></div>
+  <div class="sign"><div></div><div>客戶簽收：＿＿＿＿＿＿＿＿</div></div></div>`;
+}
+// 信封：寄件人＝商店（設定頁填地址），收件人＝店家地址；沒填地址的也印，地址空著手寫
+function docEnvelope(s){
+  const p=PR();
+  return `<div class="env"><div class="from">${esc(p.address)}<br>電話：${esc(D.shop.phone||'')}　傳真：${esc(p.fax)}<b>${esc(SHOPN())}</b></div>
+  <div class="stamp">正　郵<br>貼　票</div>
+  <table class="kind"><tr><td>印刷品</td><td></td></tr><tr><td>限　時</td><td></td></tr><tr><td>平　信</td><td></td></tr><tr><td>掛　號</td><td></td></tr></table>
+  <div class="to">收件人：<p>${s.address?esc(s.address):'&nbsp;'}</p><b>${esc(s.name)}　　${esc(s.contact||'會計部')} 收</b></div>
+  <div class="note">對帳單</div></div>`;
+}
+// 客戶帳款統計表
+function docArSum(){
+  let sum=0,got=0;
+  const rows=[...D.stores].sort((a,b)=>(a.code||'~').localeCompare(b.code||'~')||a.route-b.route).map(s=>{const t=monthRows(s.id).reduce((a,x)=>a+x.amount,0);if(!t)return null;const g=t-payOf(s.id,t).left;sum+=t;got+=g;return {s,t,g}}).filter(Boolean);
+  return `<div class="doc erp"><h3>${esc(SHOPN())}</h3><h3>客戶帳款統計表</h3><div class="eh"><span>日期：${monthSpan()}</span></div>
+  <table><thead><tr><th class="n">NO</th><th>客戶編號</th><th>客戶簡稱</th><th class="n">本期帳款</th><th class="n">已收金額</th></tr></thead>
+  <tbody>${rows.map((r,i)=>`<tr><td class="n">${i+1}</td><td>${esc(r.s.code||'')}</td><td>${esc(r.s.name)}</td><td class="n">${n0(r.t)}</td><td class="n">${r.g?n0(r.g):''}</td></tr>`).join('')}</tbody>
+  <tfoot><tr><td></td><td></td><td>合　　計：</td><td class="n">${n0(sum)}</td><td class="n">${got?n0(got):''}</td></tr></tfoot></table></div>`;
+}
+// 客戶產品銷售統計表：每家店這個月每個品項買了多少
+function docSales(orders){
+  const pm=PM(),sm=SM(),by={};let all=0;
+  for(const o of orders)for(const i of o.items){const q=billQty(i);if(!q)continue;const r=((by[o.storeId]??={})[i.pid]??={name:i.name,unit:i.unit,q:0,a:0});r.q+=q;r.a+=q*i.price}
+  const sids=Object.keys(by).filter(id=>sm[id]).sort((a,b)=>(sm[a].code||'~').localeCompare(sm[b].code||'~')||sm[a].route-sm[b].route);
+  const body=sids.map(id=>{const s=sm[id],its=Object.entries(by[id]).map(([pid,r])=>({pid,code:pm[pid]?.code||'',...r})).sort((a,b)=>(a.code||'~').localeCompare(b.code||'~')||stroke(a.name,b.name));const sub=its.reduce((a,r)=>a+r.a,0);all+=sub;
+    return its.map((r,x)=>`<tr><td>${x?'':esc(s.code||'')}</td><td>${x?'':esc(s.name)}</td><td>${esc(r.code)}</td><td>${esc(r.name)}</td><td class="n">${esc(qtyText(Math.round(r.q*10000)/10000,r.unit))}</td><td class="n">${n0(r.a)}</td></tr>`).join('')+`<tr class="esub"><td></td><td></td><td colspan="3">小　　計：</td><td class="n">${n0(sub)}</td></tr>`}).join('');
+  return `<div class="doc erp"><h3>${esc(SHOPN())}</h3><h3>客戶產品銷售統計表</h3><div class="eh"><span>出貨期間：${monthSpan()}</span></div>
+  <table><thead><tr><th>客戶編號</th><th>客戶簡稱</th><th>產品編號</th><th>品名</th><th class="n">數量</th><th class="n">金額</th></tr></thead><tbody>${body}</tbody>
+  <tfoot><tr><td></td><td></td><td colspan="3">總　　計：</td><td class="n">${n0(all)}</td></tr></tfoot></table></div>`;
+}
+// 設定頁「列印」
+function renderPrints(){
+  const p=PR();if($('printsForm').dataset.dirty)return;
+  $('pkList').innerHTML=PKS.map(([k,n])=>`<label><input type="checkbox" value="${k}" ${p.on.includes(k)?'checked':''}>${n}</label>`).join('');
+  $('pSlip').value=p.slip;$('pStmt').value=p.stmt;$('pAddr').value=p.address;$('pFax').value=p.fax;$('pEnv').value=p.env;
+  if($('hPrints'))$('hPrints').textContent=`${p.on.length} 種・出貨單${p.slip==='erp'?' ERP':'系統'}格式`;
+}
+async function savePrints(){
+  const prints={on:[...$('pkList').querySelectorAll('input:checked')].map(x=>x.value),slip:$('pSlip').value,stmt:$('pStmt').value,address:$('pAddr').value,fax:$('pFax').value,env:$('pEnv').value};
+  try{const j=await api('POST',{action:'prints',prints});D.rules.prints=j.prints;delete $('printsForm').dataset.dirty;renderAll();toast('列印設定已儲存')}catch(e){toast(e.message)}
+}
+const ENV={c5:['229mm 162mm','150mm'],dl:['220mm 110mm','98mm']};
 async function openPrint(kind,sid){
   const s=sid&&SM()[sidOf(sid)];
   // 店家的電子簽名一起印在確認單上
   if(kind==='slip'||kind==='slips'){SIGS={};const ids=kind==='slip'?[sid]:Object.keys(D.signatures||{});await Promise.all(ids.filter(x=>D.signatures?.[x]?.hasPng).map(async x=>SIGS[x]=await sigImg(x)))}
   const withOrder=D.stores.filter(x=>slipsOf(x.id).length).sort((a,b)=>a.route-b.route);
   const allSlips=withOrder.flatMap(x=>slipsOf(x.id).map(okey));
-  if((kind==='slips'||kind==='daily'||kind==='buy')&&!withOrder.length){toast('這天沒有訂單');return}
-  const html={buy:docBuy,daily:docDaily,month:docMonth,slip:()=>docSlip(sid),stmt:()=>docStmt(s),slips:()=>allSlips.map(docSlip).join('')}[kind]();
+  if(['slips','daily','buy','supOrder','pick','purchase'].includes(kind)&&!withOrder.length){toast('這天沒有訂單');return}
+  const billed=D.stores.filter(x=>monthRows(x.id).length).sort((a,b)=>a.route-b.route);
+  if(['stmtAll','stmtBrief','envelope','arSum','sales'].includes(kind)&&!billed.length){toast('這個月沒有送貨紀錄');return}
+  const erpStmt=PR().stmt==='erp',slipDoc=PR().slip==='erp'?docSlipErp:docSlip;
+  let html;
+  try{
+    const mo=(kind==='sales'||(erpStmt&&(kind==='stmt'||kind==='stmtAll')))?await monthOrders():null;
+    const stmtDoc=x=>erpStmt?docStmtErp(x,mo):docStmt(x);
+    html={buy:docBuy,daily:docDaily,month:docMonth,slip:()=>slipDoc(sid),stmt:()=>stmtDoc(s),slips:()=>allSlips.map(slipDoc).join(''),
+      supOrder:docSupOrder,pick:docPick,purchase:docPurchase,stmtAll:()=>billed.map(stmtDoc).join(''),stmtBrief:()=>billed.map(docStmtBrief).join(''),
+      envelope:()=>billed.map(docEnvelope).join(''),arSum:docArSum,sales:()=>docSales(mo)}[kind]();
+  }catch(e){toast(e.message||'載入失敗');return}
   $('paper').innerHTML=html;$('pv').classList.add('on');
+  // 信封用信封的尺寸，不用選紙
+  const envK=kind==='envelope'&&ENV[PR().env];
+  $('paper').dataset.env=envK?PR().env:'';
+  document.querySelectorAll('[data-paper]').forEach(b=>b.hidden=!!envK);
+  if(envK){$('paper').className='paper';$('paper').style.cssText=`width:${ENV[PR().env][0].split(' ')[0]};--envh:${ENV[PR().env][1]}`;fitPage();return}
+  $('paper').style.cssText='';
   let k='a4';try{k=localStorage.getItem('paper')==='r80'?'r80':'a4'}catch{}
   setPaper(k);
 }
@@ -1607,6 +1847,7 @@ function setPaper(k){
 function fitPage(){
   const r80=$('paper').classList.contains('r80');
   const h=Math.ceil($('paper').scrollHeight*25.4/96)+10;
+  if(ENV[$('paper').dataset.env]){$('pageSize').textContent=`@page{size:${ENV[$('paper').dataset.env][0]};margin:0}`;return}
   $('pageSize').textContent=r80?`@page{size:80mm ${h}mm;margin:2mm}`:'@page{size:A4;margin:12mm}';
 }
 
@@ -1631,6 +1872,10 @@ $('rmonth').addEventListener('change',e=>{if(e.target.value){rmonth=e.target.val
 $('month').addEventListener('change',e=>{if(e.target.value){month=e.target.value;openBill=null;load()}});
 $('toOpen').addEventListener('click',()=>{date='';load()});
 $('saveP').addEventListener('click',saveProducts);
+$('erpBtn').addEventListener('click',()=>$('erpFile').click());
+$('erpFile').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f)importErp(f)});
+$('erpSBtn').addEventListener('click',()=>$('erpSFile').click());
+$('erpSFile').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f)importErpStores(f)});
 $('pSearch').addEventListener('input',()=>{openP=-1;renderProducts()});
 $('aeFind').addEventListener('input',aeHits);
 $('aeFind').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();const p=aeMatches()[0];if(p)aePick(p.id)}});
@@ -1646,6 +1891,7 @@ document.addEventListener('click',async e=>{
   if(b.dataset.month){month=addMonths(D.month,+b.dataset.month);openBill=null;load()}
   if(b.dataset.row){openRow=openRow===b.dataset.row?null:b.dataset.row;renderBoard()}
   if(b.dataset.onlyleft){onlyLeft=!onlyLeft;renderBoard()}
+  if(b.dataset.buyby){localStorage.setItem('buyBy',bySup()?'cat':'sup');renderBoard();return}
   if(b.dataset.buyall){const t=totals().find(x=>x.pid===b.dataset.buyall);saveBought(t.pid,boughtOf(t.pid)>=t.qty?0:t.qty)}
   if(b.dataset.step){const o=orderOf(b.dataset.sid);const it=o.items.find(i=>i.pid===b.dataset.pid);const d=+b.dataset.step,q=billQty(it);setQty(b.dataset.sid,b.dataset.pid,d<0&&q<1?0:q+d,true,'ship')}
   if(b.dataset.additem||b.dataset.newslip){
@@ -1735,6 +1981,7 @@ document.addEventListener('click',async e=>{
   if(b.id==='addUnit'){const u=$('newUnit').value.trim();if(!u){toast('請先填單位');$('newUnit').focus();return}if(D.units.includes(u)){toast(`「${u}」已經有了`);return}saveUnits([...D.units,u],`已新增單位「${u}」`)}
   if(b.dataset.cmenu!=null){const ci=+b.dataset.cmenu;openCat=openCat===ci?-1:ci;renderProducts();return}
   if(b.dataset.addp!=null){addProduct(+b.dataset.addp);return}
+  if(b.dataset.cfold!=null){toggleCat(D.categories[+b.dataset.cfold]);return}
   if(b.dataset.cren!=null){const c=D.categories[+b.dataset.cren],to=prompt(`「${c}」改成：`,c);if(to&&to.trim()&&to.trim()!==c){if(pDirty){toast('請先按「儲存品項」');return}try{const j=await api('POST',{action:'renameCategory',from:c,to:to.trim()});D.categories=j.categories;D.products=j.products;P=structuredClone(j.products);openCat=-1;renderProducts();toast(`已改名為「${to.trim()}」`)}catch(err){toast(err.message)}}return}
   if(b.dataset.cmove!=null){const ci=+b.dataset.cmove,d=+b.dataset.d,l=[...D.categories];[l[ci],l[ci+d]]=[l[ci+d],l[ci]];openCat=ci+d;saveCats(l,'分類順序已更新');return}
   if(b.id==='addCat'){const c=$('newCat').value.trim();if(!c){toast('請先填分類名稱');$('newCat').focus();return}if(D.categories.includes(c)){toast(`「${c}」已經有了`);return}{$('newCat').value='';saveCats([...D.categories,c],`已新增分類「${c}」，在它下面新增品項`)}}
@@ -1849,6 +2096,8 @@ document.addEventListener('focusin',e=>{if(e.target.dataset?.sqin||e.target.data
 window.addEventListener('beforeunload',e=>{if(pDirty||sDirty||gDirty||rDirty||$('dpInfo').textContent==='有尚未儲存的修改')e.preventDefault()});
 $('resetData').addEventListener('click',resetData);
 $('saveRules').addEventListener('click',saveRules);
+$('savePrints').addEventListener('click',savePrints);
+$('printsForm').addEventListener('input',()=>{$('printsForm').dataset.dirty=1});
 $('rulesForm').addEventListener('input',()=>{$('rulesForm').dataset.dirty=1;$('rAddonUntil').disabled=!$('rAddon').checked});
 // 加到主畫面的後台沒有重新整理按鈕：切回來時問伺服器有沒有新版本，有的話跳出「點這裡更新」
 const MY_VER=document.querySelector('.ver')?.textContent;

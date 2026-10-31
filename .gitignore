@@ -8,3 +8,6 @@ node_modules/
 *-debug.log
 .DS_Store
 .fuse_hidden*
+# 菜行給的 ERP 匯出檔（有客戶電話、聯絡人），不要進 git
+*.xlsx
+報表列印/

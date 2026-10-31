@@ -49,7 +49,7 @@ async function answer(job, messages) {
 export async function processJob(job, jobId) {
   const store = await shop.storeOfUser(job.userId);
   if (!store) return;
-  const [products, storeAliases] = await Promise.all([shop.getProducts(), shop.getStoreAliases(store.id)]);
+  const [products, storeAliases, usual] = await Promise.all([shop.getProducts(), shop.getStoreAliases(store.id), shop.usualPids(store.id).catch(() => [])]);
   const date = openDate();
   const ref = db().collection('aiDrafts').doc(jobId);
   if ((await ref.get()).exists) return; // 重送的事件，處理過了
@@ -68,8 +68,8 @@ export async function processJob(job, jobId) {
       thumb = 'data:image/jpeg;base64,' + (await sharp(raw).rotate().resize({ width: 1000, height: 1000, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 60, mozjpeg: true }).toBuffer()).toString('base64');
     }
     const t = Date.now();
-    parsed = await parseOrder({ text: job.text, image, products, storeAliases });
-    console.log('AI 叫貨', JSON.stringify({ store: store.name, type: job.type, ms: Date.now() - t, items: parsed.items.length, unknown: parsed.unknown }));
+    parsed = await parseOrder({ text: job.text, image, products, storeAliases, usual });
+    console.log('AI 叫貨', JSON.stringify({ store: store.name, type: job.type, ms: Date.now() - t, sent: parsed.sent, items: parsed.items.length, unknown: parsed.unknown }));
   } catch (e) {
     console.error('AI 辨識失敗', store.name, job.type, e);
     await alertAiDown(e);

@@ -1,6 +1,6 @@
 // 後台 API：用 Firebase 登入，依角色決定能做什麼（見 lib/auth.js）
 import { SHOP } from '../lib/config.js';
-import { saveRules, savePalette } from '../lib/rules.js';
+import { saveRules, savePalette, savePrints } from '../lib/rules.js';
 import { json, fail, readJSON, UserError } from '../lib/http.js';
 import { push } from '../lib/line.js';
 import { openDate, today, thisMonth, isDate, isMonth, cutoffLabel, getRulesNow } from '../lib/dates.js';
@@ -72,6 +72,12 @@ export async function GET(request) {
       need(me, 'editOrders');
       const snap = await getFirestore().collection('aiDrafts').orderBy('createdAt', 'desc').limit(30).get();
       return json({ drafts: snap.docs.map((d) => d.data()) });
+    }
+    // 列印整月的單子（明細對帳單、客戶產品銷售統計表）才載：這個月每張單的品項
+    if (q.get('orders')) {
+      need(me, 'bills');
+      const m = isMonth(q.get('orders')) ? q.get('orders') : thisMonth();
+      return json({ month: m, orders: await shop.ordersOfMonth(m) });
     }
     // 報表分頁另外載（要讀整個月的訂單）
     if (q.get('report')) {
@@ -189,9 +195,15 @@ export async function POST(request) {
       case 'products':
         need(me, 'products');
         return json({ products: await shop.saveProducts(b.products) });
+      case 'importErp':
+        need(me, 'products');
+        return json(await shop.importErp(b.rows, { dry: b.dry !== false, removeOthers: !!b.removeOthers }));
       case 'priceGroups':
         need(me, 'stores');
         return json({ priceGroups: await shop.savePriceGroups(b.priceGroups) });
+      case 'importErpStores':
+        need(me, 'stores');
+        return json(await shop.importErpStores(b.rows, { dry: b.dry !== false }));
       case 'stores':
         need(me, 'stores');
         return json({ stores: await shop.saveStores(b.stores) });
@@ -300,6 +312,9 @@ export async function POST(request) {
       case 'palette':
         need(me, 'users');
         return json({ palette: await savePalette(String(b.palette || '')) });
+      case 'prints':
+        need(me, 'users');
+        return json({ prints: await savePrints(b.prints || {}) });
       case 'rules':
         need(me, 'users');
         return json({ rules: await saveRules(b.rules || {}), openDate: openDate(), cutoffLabel: cutoffLabel(openDate()) });
