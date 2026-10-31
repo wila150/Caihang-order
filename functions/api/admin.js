@@ -17,6 +17,7 @@ import { resetTestData } from '../lib/reset.js';
 import { applyDraft } from '../lib/aiorder.js';
 import { saveImage } from './img.js';
 import { listBoss, newBossCode, unbindBoss } from '../lib/boss.js';
+import * as purchase from '../lib/purchase.js';
 
 async function statement(month, storeId) {
   const [all, paid] = await Promise.all([shop.monthAmounts(month), shop.getPaid(month)]);
@@ -82,6 +83,16 @@ export async function GET(request) {
       need(me, 'bills');
       const m = isMonth(q.get('orders')) ? q.get('orders') : thisMonth();
       return json({ month: m, orders: await shop.ordersOfMonth(m) });
+    }
+    // 進貨單分頁：這個月的進貨單（照片點開才載）
+    if (q.get('purchases')) {
+      need(me, 'prices');
+      const m = isMonth(q.get('purchases')) ? q.get('purchases') : thisMonth();
+      return json({ month: m, purchases: await purchase.listPurchases(m) });
+    }
+    if (q.get('purchaseImg')) {
+      need(me, 'prices');
+      return json({ thumb: await purchase.purchaseThumb(q.get('purchaseImg')) });
     }
     // 報表分頁另外載（要讀整個月的訂單）
     if (q.get('report')) {
@@ -211,6 +222,27 @@ export async function POST(request) {
       case 'priceGroups':
         need(me, 'stores');
         return json({ priceGroups: await shop.savePriceGroups(b.priceGroups) });
+      // 上游進貨單：後台上傳照片（瀏覽器先縮小）→ 讀單、核對
+      case 'purchaseUpload': {
+        need(me, 'prices');
+        const image = String(b.image || ''), thumb = String(b.thumb || '');
+        if (!/^data:image\/jpeg;base64,/.test(image) || image.length > 2.5e6 || thumb.length > 1.2e6) throw new UserError('照片格式不對或太大');
+        const inv = await purchase.readInvoice(image);
+        if (!inv.lines.length) throw new UserError('這張看不出是進貨單（沒讀到品項），請拍清楚一點');
+        const p = await purchase.savePurchase({ inv, thumb: /^data:image\/jpeg;base64,/.test(thumb) ? thumb : '', by: me.name, source: 'admin' });
+        const { thumb: _t, ...rest } = p;
+        return json({ purchase: { ...rest, hasThumb: !!_t } });
+      }
+      case 'purchaseUpdate':
+        need(me, 'prices');
+        return json({ purchase: await purchase.updatePurchase(b.id, b) });
+      case 'purchaseExpense':
+        need(me, 'prices');
+        return json(await purchase.setPurchaseExpense(b.id, !!b.on));
+      case 'purchaseRemove':
+        need(me, 'prices');
+        await purchase.removePurchase(b.id);
+        return json({ ok: true });
       case 'importSales':
         need(me, 'stores');
         return json(await shop.importSales(b.rows, { dry: b.dry !== false }));

@@ -11,6 +11,8 @@ import { roundQty } from './qty.js';
 import * as shop from './shop.js';
 import { UserError } from './http.js';
 import { draftMessage, orderMessage } from './messages.js';
+import { readInvoice, savePurchase, purchaseText } from './purchase.js';
+import { displayName } from './line.js';
 
 const db = () => getFirestore();
 
@@ -46,7 +48,26 @@ async function answer(job, messages) {
   catch (e) { console.warn('reply 失敗，改用 push', e.message); await push(job.userId, messages); }
 }
 
+// 老闆拍上游的進貨單：讀單、核對，回摘要
+async function processPurchase(job) {
+  try {
+    const raw = await getContent(job.messageId);
+    const buf = await sharp(raw).rotate().resize({ width: 1800, height: 1800, fit: 'inside', withoutEnlargement: true }).grayscale().normalize().sharpen().jpeg({ quality: 85 }).toBuffer();
+    // 後台看的照片要看得清楚數字，比叫貨單大一點
+    const thumb = 'data:image/jpeg;base64,' + (await sharp(raw).rotate().resize({ width: 1400, height: 1400, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 62, mozjpeg: true }).toBuffer()).toString('base64');
+    const inv = await readInvoice('data:image/jpeg;base64,' + buf.toString('base64'));
+    if (!inv.lines.length) return answer(job, [{ type: 'text', text: '這張看不出是進貨單（沒讀到品項）。要記帳的話直接打「品名 金額」。' }]);
+    const p = await savePurchase({ inv, thumb, by: await displayName(job.userId).catch(() => ''), source: 'line' });
+    return answer(job, [{ type: 'text', text: purchaseText(p) }]);
+  } catch (e) {
+    console.error('進貨單辨識失敗', e);
+    await alertAiDown(e);
+    return answer(job, [{ type: 'text', text: '抱歉，這張進貨單沒讀成功，請拍清楚一點再傳一次（整張單拍進去、不要反光）。' }]);
+  }
+}
+
 export async function processJob(job, jobId) {
+  if (job.type === 'purchase') return processPurchase(job);
   const store = await shop.storeOfUser(job.userId);
   if (!store) return;
   const [products, storeAliases, usual] = await Promise.all([shop.getProducts(), shop.getStoreAliases(store.id), shop.usualPids(store.id).catch(() => [])]);

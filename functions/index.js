@@ -8,6 +8,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { defineSecret } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
+import { gzipSync } from 'node:zlib';
 import * as webhook from './api/webhook.js';
 import * as shop from './api/shop.js';
 import * as admin from './api/admin.js';
@@ -26,7 +27,8 @@ const aiSecrets = [...secrets, defineSecret('NVIDIA_API_KEY')];
 const routes = { webhook, shop, admin, sign, info, img };
 
 // invoker: 'public'：LINE、店家、後台都要能呼叫（權限在程式裡檢查）。寫明白，新專案部署時才會自動打開
-export const api = onRequest({ secrets, cors: false, invoker: 'public' }, async (req, res) => {
+// 後台上傳進貨單照片要叫 AI 讀（約 20～40 秒），所以 api 也要 NVIDIA 金鑰、時間放寬
+export const api = onRequest({ secrets: aiSecrets, cors: false, invoker: 'public', timeoutSeconds: 120 }, async (req, res) => {
   const name = req.path.replace(/^\/api\//, '').replace(/^\//, '').split('/')[0];
   const fn = routes[name]?.[req.method];
   if (!fn) return res.status(404).send('Not found');
@@ -45,7 +47,14 @@ export const api = onRequest({ secrets, cors: false, invoker: 'public' }, async 
   await loadRules(); // 截單時間、公休日、補單規則（後台設定）
   const r = await fn(request);
   r.headers.forEach((v, k) => res.set(k, v));
-  res.status(r.status).send(Buffer.from(await r.arrayBuffer()));
+  let body = Buffer.from(await r.arrayBuffer());
+  // 後台一次載入有兩千多個品項（幾百 KB），壓縮後小很多，手機網路比較快
+  if (body.length > 2048 && /json|html|text/.test(r.headers.get('content-type') || '') && /\bgzip\b/.test(req.get('accept-encoding') || '')) {
+    body = gzipSync(body);
+    res.set('Content-Encoding', 'gzip');
+    res.set('Vary', 'Accept-Encoding');
+  }
+  res.status(r.status).send(body);
 });
 
 // AI 叫貨：webhook 把店家的文字／照片存進 aiJobs，這裡接手辨識，再回卡片請店家確認

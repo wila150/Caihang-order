@@ -84,7 +84,7 @@ ${mine.join('\n')}
 const READ_PROMPT = `你在看台灣餐廳傳給${SHOP.kind}的手寫或印出來的叫貨單照片。把每一行叫貨內容照原樣抄下來（品名、數量、單位），看不清楚的字用 ? 代替。手寫的「斤」常寫成「f」「厂」，「包」常寫成「勹」「ㄅ」，阿拉伯數字和國字都要認。日期、店名、電話不要抄；其他交代（送貨時間等）放 note。只輸出 JSON：{"lines":["高麗菜 3斤","香菜兩把"],"note":""}`;
 
 // 呼叫 AI 拿 JSON；偶爾回空白或格式跑掉，再試一次
-async function askJson(messages, { image = false } = {}) {
+export async function askJson(messages, { image = false } = {}) {
   const key = process.env.NVIDIA_API_KEY;
   if (!key) throw new Error('尚未設定 NVIDIA_API_KEY');
   let lastErr;

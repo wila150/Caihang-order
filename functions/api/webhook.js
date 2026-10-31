@@ -82,7 +82,7 @@ async function handle(e, origin) {
   // 記帳：老闆的 LINE（設定檔 ADMIN_LINE_USER_IDS 或在 LINE 綁定的）打「油錢 500」就記一筆支出。
   // 在老闆選單時「油錢 500」直接記；切到店家選單（測試叫貨）時要加「記帳」開頭，不然會被當成叫貨
   if ((await bossIds()).includes(uid)) {
-    const r = await bossChat({ said, pb, action, store, uid });
+    const r = await bossChat({ said, pb, action, store, uid, e, origin });
     if (r) return say(r);
     if (r === false) return;
   }
@@ -238,7 +238,7 @@ function savedReply(e, cats, head = '✅ 已記帳') {
 
 // 老闆的 LINE：老闆選單（記帳）和店家選單（測試叫貨）可以切換；在老闆選單時打「品名 金額」就是記帳
 const modeRef = (uid) => getFirestore().doc('adminMode/' + uid);
-async function bossChat({ said, pb, action, store, uid }) {
+async function bossChat({ said, pb, action, store, uid, e, origin }) {
   if (action === 'menu') {
     await modeRef(uid).set({ mode: pb.get('to') === 'store' ? 'store' : 'boss' }, { merge: true });
     return false; // 圖文選單切換，不用回覆
@@ -253,6 +253,12 @@ async function bossChat({ said, pb, action, store, uid }) {
   const info = await bossInfo({ said, pb, action });
   if (info) return info;
   const m = (await modeRef(uid).get()).data() || {};
+  // 老闆選單時傳照片＝上游的進貨單：讀單、核對上游有沒有算錯（店家選單時傳照片照樣是測試叫貨）
+  if (e?.type === 'message' && e.message.type === 'image' && (m.mode || 'boss') === 'boss') {
+    await loading(uid, 60);
+    await queue({ type: 'purchase', messageId: e.message.id, userId: uid, replyToken: e.replyToken, origin }, e.webhookEventId);
+    return false;
+  }
   // 按「記帳」選了分類：10 分鐘內打的「品名 金額」記到這一類
   const pick = m.pick && Date.now() - m.pick.at < 10 * 60e3 ? m.pick.cat : '';
   return expenseChat({ said, pb, action, store: (m.mode || 'boss') === 'store' ? store : null, uid, pick });

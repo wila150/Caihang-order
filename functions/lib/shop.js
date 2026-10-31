@@ -28,9 +28,16 @@ const rid = (p) => p + Date.now().toString(36) + Math.random().toString(36).slic
 const clean = (s, max) => String(s ?? '').trim().slice(0, max);
 
 /* ---------- 品項 ---------- */
+// 品項有兩千多項（約 400KB），一次載入會被讀好幾次：暫存 3 秒，這台改了品項馬上清掉（別台最多晚 3 秒）
+let prodCache = null, prodAt = 0;
+export const bustProducts = () => { prodCache = null; };
 export async function getProducts() {
   await ensureMigrated();
-  return (await data('settings/products'))?.items ?? DEFAULT_PRODUCTS;
+  if (!prodCache || Date.now() - prodAt > 3000) {
+    prodAt = Date.now();
+    prodCache = data('settings/products').then((d) => d?.items ?? DEFAULT_PRODUCTS).catch((e) => { prodCache = null; throw e; });
+  }
+  return prodCache;
 }
 
 /* ---------- 包裝換算：1 件＝10 斤、1 箱＝20 斤（數量一律換成品項的單位） ---------- */
@@ -84,6 +91,7 @@ export async function addAlias({ text, pid, storeId }) {
     tx.set(ref, { items });
     return items;
   });
+  bustProducts();
   return { products: list };
 }
 
@@ -141,6 +149,7 @@ async function migrateCategories() {
     tx.set(cref, { items: [...new Set(list)].sort((a, b) => rank(a) - rank(b)) });
     if (items) tx.set(pref, { items: items.map((i) => (hit(i.cat) ? { ...i, cat: map[i.cat] } : i)) });
   });
+  bustProducts();
 }
 let migrated = null;
 const ensureMigrated = () => (migrated ??= migrateCategories().catch((e) => { migrated = null; throw e; }));
@@ -177,6 +186,7 @@ export async function renameCategory(from, to) {
     tx.set(doc('settings/categories'), { items: cats.map((c) => (c === from ? to : c)) });
     return items;
   });
+  bustProducts();
   return { categories: cats.map((c) => (c === from ? to : c)), products };
 }
 
@@ -221,6 +231,7 @@ export async function saveProducts(input) {
     }
   }
   await doc('settings/products').set({ items: list });
+  bustProducts();
   return list;
 }
 
@@ -308,6 +319,7 @@ export async function importErp(input, { dry = true, removeOthers = false } = {}
     if (dry) return summary;
     tx.set(pref, { items });
     tx.set(cref, { items: cats });
+    bustProducts();
     if (newUnits.length !== units.length) tx.set(uref, { items: newUnits, v: UNITS_VERSION });
     return { ...summary, products: items, categories: cats, units: newUnits };
   });
@@ -460,6 +472,7 @@ export async function setDayPrices(date, input, costInput = {}) {
     }
     if (changed) tx.set(pref, { items });
   });
+  bustProducts();
   return day;
 }
 

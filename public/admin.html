@@ -98,6 +98,12 @@ h2{font-size:1.15rem;margin:0 0 4px;font-weight:900}
 .brow.done .nm,.brow.done .qty{opacity:.45}
 .missing{margin-top:14px;padding:12px 14px;border-left:4px solid var(--alert);background:var(--surface);border-radius:0 8px 8px 0}
 .missing b{color:var(--alert)}
+/* 還沒叫貨：摘要＋收合，店名做成小標籤 */
+.missing summary{cursor:pointer;list-style:none}.missing summary::-webkit-details-marker{display:none}
+.missing summary::after{content:"　展開 ▾";color:var(--muted);font-size:.85rem}.missing details[open] summary::after{content:"　收起 ▴"}
+.missing h5{margin:10px 0 4px;font-size:.85rem;color:var(--muted);font-weight:700}
+.mchips{display:flex;flex-wrap:wrap;gap:4px}.mchips span{border:1px solid var(--line);border-radius:12px;padding:1px 9px;font-size:.85rem;background:var(--bg)}
+.slipnone{grid-column:1/-1;color:var(--muted);padding:10px 4px}
 .missing button{margin-top:8px}
 
 .slips{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
@@ -127,6 +133,14 @@ h2{font-size:1.15rem;margin:0 0 4px;font-weight:900}
 .log h3{margin:0 0 6px;font-size:1rem}
 .log ol{margin:0;padding-left:1.2em;color:var(--muted);font-size:.88rem}
 
+.pu-day{display:flex;justify-content:space-between;align-items:baseline;margin:16px 2px 6px;font-weight:700}
+.pu-day small{color:var(--muted);font-weight:400}
+.pu-d{padding:0 14px 14px}.pu-d img{width:100%;max-width:520px;border-radius:8px;border:1px solid var(--line);cursor:zoom-in}
+.pu-d table{width:100%;border-collapse:collapse;font-size:.9rem;margin:8px 0}.pu-d th,.pu-d td{border-bottom:1px solid var(--line);padding:3px 4px;text-align:left}
+.pu-d td input{width:100%;min-width:3em;border:1px solid var(--line);border-radius:6px;padding:4px;background:var(--bg)}
+.pu-d .n{text-align:right}.pu-d .bad{color:var(--alert);font-weight:700}
+.pu-iss{margin:6px 0;padding-left:1.2em;font-size:.9rem}.pu-iss .sum,.pu-iss .line{color:var(--alert);font-weight:700}
+.pu-tag{font-size:.75rem;border-radius:8px;padding:1px 8px;margin-left:6px;white-space:nowrap}.pu-tag.bad{background:var(--alert);color:#fff}.pu-tag.ok{background:var(--line);color:var(--muted)}.pu-tag.warn{background:var(--tag);color:#2A2400}
 .bill{background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-bottom:8px;overflow:hidden}
 .bill-h{width:100%;display:grid;grid-template-columns:1fr auto;gap:8px;padding:12px 14px;border:0;background:transparent;text-align:left}
 .bill-h b{font-size:1.05rem}
@@ -301,6 +315,12 @@ h2{font-size:1.15rem;margin:0 0 4px;font-weight:900}
 .signed button{border:0;background:transparent;color:var(--leaf);text-decoration:underline;padding:0 4px;font-size:.85rem}
 .sheetbg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:25;padding:16px}
 .sheetbg.on{display:flex}
+/* 列印選單 */
+.pcin{max-width:520px;width:100%;max-height:90vh;overflow:auto}
+.pcin h4{margin:12px 0 4px;font-size:.9rem;color:var(--muted)}
+.pcin label{display:flex;align-items:center;gap:8px;padding:5px 2px}.pcin label.off{opacity:.45}
+.pcin label small{color:var(--muted)}.pcin select{margin-left:auto}
+.pcin .seg{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 4px 26px}.pcin .seg label{padding:2px 0}
 .sigin{background:var(--surface);border-radius:12px;padding:16px;width:100%;max-width:520px}
 .sigin h3{margin:0}
 #sigPad{width:100%;height:220px;border:2px dashed var(--line);border-radius:8px;background:#fff;touch-action:none;display:block}
@@ -408,6 +428,7 @@ h2{font-size:1.15rem;margin:0 0 4px;font-weight:900}
   .pv-scroll{padding:0;overflow:visible}
   .paper{width:auto!important;padding:0!important}
   .doc.break,.env{break-after:page}
+  .pk+.pk{break-before:page}
   .doc+.doc{border-top:0;margin-top:0;padding-top:0}
   /* 80mm 是一張長紙，不分頁，單和單之間用虛線隔開 */
   .r80 .doc.break{break-after:auto}
@@ -563,6 +584,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   <button id="lineBtn" class="gbtn lbtn" type="button"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5C6.2 2.5 1.5 6.3 1.5 11c0 4.2 3.7 7.7 8.8 8.4.3.1.8.2.9.5.1.3.1.7 0 1l-.1.9c0 .3-.2 1 .9.5s6-3.5 8.2-6.1c1.5-1.6 2.3-3.3 2.3-5.2 0-4.7-4.7-8.5-10.5-8.5z"/></svg>用 LINE 登入</button>
 </form>
 
+<datalist id="plist"></datalist><datalist id="plistAll"></datalist>
 <div class="wrap" id="app" hidden>
   <header class="top">
     <div class="th"><div class="brand"><span class="logo" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 2.5c1.3 2.4 1.2 4.7.3 6.6C22 10.4 27.5 14.7 27.5 20.6c0 5.6-5.1 8.9-11.5 8.9S4.5 26.2 4.5 20.6c0-5.9 5.5-10.2 11.2-11.5-.9-1.9-1-4.2.3-6.6z" fill="currentColor"/><path d="M16 11.5c-2.6 2.9-3.6 6.1-3.6 9.3 0 3 1.1 5.5 3.6 7.4m0-16.7c2.6 2.9 3.6 6.1 3.6 9.3 0 3-1.1 5.5-3.6 7.4" stroke="#1F4D3A" stroke-opacity=".55" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg></span><h1 id="shopName">叫貨後台</h1></div><div class="hact"><button class="lnk" id="themeBtn" aria-label="切換深色或淺色"></button><button class="lnk" id="helpBtn">說明</button><button class="lnk" id="logout">登出</button></div></div>
@@ -575,6 +597,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
     <button role="tab" data-tab="slips" aria-selected="false"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg><span class="tl">出貨單</span></button>
     <button role="tab" data-tab="bills" aria-selected="false"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg><span class="tl">對帳</span></button>
     <button role="tab" data-tab="ai" aria-selected="false"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg><span class="tl">AI 紀錄</span></button>
+    <button role="tab" data-tab="purchase" aria-selected="false"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 1 .7V2l-1 .7-3-2-3 2-3-2-3 2-3-2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span class="tl">進貨單</span></button>
     <button role="tab" data-tab="report" aria-selected="false"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg><span class="tl">報表</span></button>
     <button role="tab" data-tab="admin" aria-selected="false"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 8.7 5 8.7-5"/></svg><span class="tl">品項</span></button>
     <button role="tab" data-tab="stores" aria-selected="false"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-4 0 2 2 0 0 1-4 0 2 2 0 0 1-4 0 2 2 0 0 1-4 0 2 2 0 0 1-4 0V7"/></svg><span class="tl">店家</span><span class="dot" id="pendDot" hidden></span></button>
@@ -591,7 +614,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
 
   <section id="board">
     <h2>要準備的量</h2>
-    <div class="bar"><button class="pbtn" data-print="buy" data-pk="buy">列印採買總表</button><button class="pbtn" data-print="supOrder" data-pk="supOrder">列印叫貨單（依廠商）</button><button class="pbtn" data-print="pick" data-pk="pick">列印出貨明細表</button><button class="pbtn" data-print="purchase" data-pk="purchase">列印進貨單</button></div>
+    <div class="bar"><button class="pbtn" data-pchoose="buy">🖨 列印…</button></div>
     <div class="board" id="boardBox"></div>
     <div id="missing"></div>
   </section>
@@ -605,8 +628,9 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   <section id="slips" hidden>
     <h2>各店出貨單</h2>
     <div id="printNote"></div>
-    <div class="bar"><button class="pbtn" data-print="slips">列印全部出貨單／收據</button><button class="pbtn" data-print="slipsNew" id="printNew">只印沒印過的</button><button class="pbtn" data-print="daily" data-pk="daily">列印當日營業報表</button><button class="pbtn" id="xlsDay">匯出 Excel</button><button class="send" id="receiptAll">全部傳 LINE 收據／出貨單</button></div>
+    <div class="bar"><button class="pbtn" data-pchoose="slips">🖨 列印…</button><button class="pbtn" id="xlsDay">匯出 Excel</button><button class="send" id="receiptAll">全部傳 LINE 收據／出貨單</button></div>
     <div id="issueBox"></div>
+    <input id="sqSlips" class="psearch" type="search" placeholder="找店家（店名、ERP 代號、連鎖店）" aria-label="找店家（店名、ERP 代號、連鎖店）">
     <div class="slips" id="slipBox"></div>
     <div class="log" id="logBox"></div>
   </section>
@@ -614,8 +638,9 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   <section id="bills" hidden>
     <div class="datebar"><button data-month="-1" aria-label="上個月">‹</button><input type="month" id="month" aria-label="對帳月份"><button data-month="1" aria-label="下個月">›</button></div>
     <h2 id="billTitle">對帳</h2>
-    <div class="bar"><button class="pbtn" data-print="month">列印應收總表</button><button class="pbtn" data-print="stmtAll">列印全部對帳單</button><button class="pbtn" data-print="stmtBrief" data-pk="stmtBrief">列印客戶對帳單</button><button class="pbtn" data-print="envelope" data-pk="envelope">列印信封</button><button class="pbtn" data-print="arSum" data-pk="arSum">列印客戶帳款統計表</button><button class="pbtn" data-print="sales" data-pk="sales">列印客戶產品銷售統計表</button><button class="pbtn" id="xlsBills">匯出 Excel</button></div>
+    <div class="bar"><button class="pbtn" data-pchoose="bills">🖨 列印…</button><button class="pbtn" id="xlsBills">匯出 Excel</button></div>
     <div class="sumline" id="billSum"></div>
+    <input id="sqBills" class="psearch" type="search" placeholder="找店家（店名、ERP 代號、連鎖店）" aria-label="找店家（店名、ERP 代號、連鎖店）">
     <div id="billBox"></div>
   </section>
 
@@ -623,6 +648,13 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
     <h2>AI 叫貨紀錄</h2>
     <div class="bar"><button class="pbtn" id="aiReload">重新整理</button></div>
     <div id="aiBox"><div class="empty">載入中…</div></div>
+  </section>
+
+  <section id="purchase" hidden>
+    <div class="datebar"><button data-pmonth="-1" aria-label="上個月">‹</button><input type="month" id="pmonth" aria-label="進貨單月份"><button data-pmonth="1" aria-label="下個月">›</button>
+      <button class="pbtn" id="puBtn">上傳進貨單照片</button><input type="file" id="puFile" accept="image/*" multiple hidden></div>
+    <p class="sub">上游廠商給的出貨單拍起來：老闆在 LINE（老闆選單）直接傳照片，或在這裡上傳。AI 讀出每一行，系統自己用「數量×單價」重算，抓上游多算、少算，也跟平常進價、那天要叫的量比。</p>
+    <div id="puBox"><div class="empty">載入中…</div></div>
   </section>
 
   <section id="report" hidden>
@@ -664,7 +696,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
     </div></details>
     <details class="sgrp"><summary><svg class="si" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><span class="st">列印<small id="hPrints"></small></span><svg class="sc" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></summary><div class="sgb">
     <form class="addform rules" id="printsForm" onsubmit="return false">
-      <fieldset class="wds"><legend>要顯示哪些列印按鈕</legend><div id="pkList"></div></fieldset>
+      <p class="sub">要印哪些在出貨單、採買總表、對帳頁按「🖨 列印…」當場勾。這裡設預設的格式和信封。</p>
       <label>出貨單格式<select id="pSlip"><option value="sys">系統格式（品名、數量、單價、金額）</option><option value="erp">ERP 格式（公司寶號、單號、民國年、兩欄）</option></select></label>
       <label>對帳單格式<select id="pStmt"><option value="sys">系統格式（每天一筆金額）</option><option value="erp">ERP 格式（每張單的品項明細）</option></select></label>
       <label>商店地址（印在信封寄件人）<input id="pAddr" maxlength="80" placeholder="例如 臺中市太平區…"></label>
@@ -705,6 +737,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
     <div id="pendBox"></div>
     <h2>店家與配送路線</h2>
     <div class="bar"><button class="pbtn" type="button" id="erpSBtn">匯入 ERP 客戶</button><input type="file" id="erpSFile" accept=".xlsx,.xls" hidden><button class="pbtn" type="button" id="erpHBtn">匯入 ERP 銷售紀錄</button><input type="file" id="erpHFile" accept=".xlsx,.xls" multiple hidden></div>
+    <input id="sqStores" class="psearch" type="search" placeholder="找店家（店名、ERP 代號、連鎖店、電話）" aria-label="找店家（店名、ERP 代號、連鎖店、電話）">
     <div id="storeList"></div>
     <div class="savebar"><button class="pbtn" id="addS">＋ 新增店家</button><button class="ok" id="saveS" disabled>儲存店家</button><span id="sDirty"></span></div>
 
@@ -734,6 +767,10 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   <p class="invcode">綁定碼 <b id="invCode"></b><small id="invExp"></small></p>
   <div class="sa"><button id="invCopy">複製連結</button><button id="invPrint">列印卡片</button></div>
   <div class="sa"><button id="invRenew" class="danger">重新產生（舊的作廢）</button><button class="go" id="invClose">關閉</button></div>
+</div></div>
+<div class="sheetbg" id="pchoose" role="dialog" aria-modal="true" aria-labelledby="pcTitle"><div class="sigin pcin">
+  <h3 id="pcTitle">要印什麼？</h3><div id="pcBody"></div>
+  <div class="acts"><button class="ok" id="pcGo">預覽列印</button><button class="pbtn" data-pcclose="1">取消</button></div>
 </div></div>
 <div class="sheetbg" id="linkBox" role="dialog" aria-modal="true" aria-labelledby="linkTitle"><div class="sigin">
   <h3 id="linkTitle">確認配送單連結</h3>
@@ -861,6 +898,17 @@ async function api(method,body,q=''){
 // 沒權限時也登出，才能換另一個 Google 帳號
 function showLogin(msg){$('app').hidden=true;$('login').hidden=false;$('loginErr').textContent=msg||(/\bLine\//i.test(navigator.userAgent)?'在 LINE 裡請按「用 LINE 登入」（Google 登入在 LINE 裡不能用）':'');if(msg){LS.set('');if(FB?.auth.currentUser)FB.signOut(FB.auth)}}
 const may=w=>D.me.can.includes(w);
+// 找店家：店名、ERP 代號、連鎖店、電話都可以
+const SQ=id=>($(id)?.value||'').trim().toLowerCase();
+const storeHit=(s,q)=>!q||[s.name,s.code,s.chain,s.phone].some(x=>String(x||'').toLowerCase().includes(q));
+// 品項打字搜尋（datalist）：選到的字是「品名（單位）」，換回品項 id
+const pLabel=p=>`${p.name}（${p.unit}）`;
+function fillPlist(){
+  const on=D.products.filter(p=>p.on);
+  $('plist').innerHTML=on.map(p=>`<option value="${esc(pLabel(p))}"></option>`).join('');
+  $('plistAll').innerHTML=D.products.map(p=>`<option value="${esc(pLabel(p))}"></option>`).join('');
+}
+function pidOf(text){const t=String(text||'').trim();if(!t)return '';const p=D.products.find(p=>pLabel(p)===t)||D.products.find(p=>p.name===t);return p?.id||''}
 const hasPrice=()=>may('prices')||may('bills');
 function applyPalette(p){if(!p)return;document.documentElement.dataset.palette=p;try{localStorage.setItem('palette',p)}catch{}}
 async function load(){
@@ -891,13 +939,11 @@ const amount=o=>Math.round(o.items.reduce((a,i)=>a+billQty(i)*i.price,0));
 
 function renderAll(){
   $('meInfo').textContent=`${D.me.name}（${D.me.roleName}）`;
-  const tabs={prices:may('prices'),bills:may('bills'),report:may('bills'),ai:may('editOrders'),admin:may('products'),stores:may('stores'),};
+  fillPlist();
+  const tabs={purchase:may('prices'),prices:may('prices'),bills:may('bills'),report:may('bills'),ai:may('editOrders'),admin:may('products'),stores:may('stores'),};
   document.querySelectorAll('nav.tabs button').forEach(b=>{b.hidden=tabs[b.dataset.tab]===false});
   if(tabs[tab]===false)showTab('board');
-  // 列印按鈕：設定頁「列印」勾的才顯示
-  document.querySelectorAll('[data-pk]').forEach(b=>{b.hidden=!prOn(b.dataset.pk)});
-  document.querySelector('[data-print="daily"]').hidden||=!hasPrice();
-  document.querySelector('[data-print="purchase"]').hidden||=!may('prices');
+
   $('receiptAll').hidden=!may('statement');
   $('slips').classList.toggle('ro',!may('editOrders'));
   $('shopName').textContent=D.shop.name+' 叫貨後台';
@@ -966,8 +1012,25 @@ function renderBoard(){
   const ordered=new Set(D.orders.map(o=>o.storeId));
   const miss=activeStores().filter(s=>!ordered.has(s.id));
   const canRemind=may('remind')&&D.date===D.openDate&&miss.some(s=>s.members.length);
-  $('missing').innerHTML=miss.length?`<div class="missing"><b>還沒叫貨：</b>${miss.map(s=>esc(s.name)).join('、')}${canRemind?`<br><button class="pbtn" id="remind">用 LINE 提醒這 ${miss.filter(s=>s.members.length).length} 家</button>`:''}</div>`:'';
+  // 店家多：先只顯示幾家沒叫，點開才列店名（分有綁 LINE、沒綁 LINE），可以搜尋
+  const line=miss.filter(s=>s.members.length).length;
+  $('missing').innerHTML=miss.length?`<div class="missing"><details ${missOpen?'open':''} id="missDet"><summary><b>還沒叫貨 ${miss.length} 家</b><small style="color:var(--muted)">（已叫 ${ordered.size} 家・有綁 LINE ${line} 家・沒綁 ${miss.length-line} 家）</small></summary>
+    <input id="sqMiss" class="psearch" type="search" placeholder="找店家" aria-label="在還沒叫貨的店裡找" value="${esc(missQ)}" style="margin-top:8px"><div id="missList"></div></details>
+    ${canRemind?`<button class="pbtn" id="remind">用 LINE 提醒有綁的 ${line} 家</button>`:''}</div>`:'';
+  renderMissList();
 }
+
+let missOpen=false,missQ='';
+function renderMissList(){
+  if(!$('missList'))return;
+  const ordered=new Set(D.orders.map(o=>o.storeId)),q=missQ.trim().toLowerCase();
+  const miss=activeStores().filter(s=>!ordered.has(s.id)&&storeHit(s,q));
+  const chips=l=>l.length?`<div class="mchips">${l.map(s=>`<span>${esc(s.name)}</span>`).join('')}</div>`:'<div class="mchips"><small style="color:var(--muted)">沒有</small></div>';
+  const a=miss.filter(s=>s.members.length),b=miss.filter(s=>!s.members.length);
+  $('missList').innerHTML=q&&!miss.length?'<p class="sub">找不到</p>':`<h5>有綁 LINE（可以用 LINE 提醒）${a.length} 家</h5>${chips(a)}<h5>沒綁 LINE（要打電話，或到出貨單頁幫他叫）${b.length} 家</h5>${chips(b)}`;
+}
+document.addEventListener('toggle',e=>{if(e.target.id==='missDet')missOpen=e.target.open},true);
+document.addEventListener('input',e=>{if(e.target.id==='sqMiss'){missQ=e.target.value;renderMissList()}});
 
 /* ---------- 單價 ---------- */
 let dpDraft={};
@@ -1090,6 +1153,64 @@ async function importErpStores(file){
     await load();toast(`已匯入，現在共 ${j.stores.length} 家店`);
   }catch(e){toast(e.message)}
 }
+/* ---------- 進貨單（上游的出貨單拍照核對）---------- */
+let PU=null,pmonth='',openPu='',puImg={},puEdit={};
+async function loadPurchases(){
+  const m=pmonth||D.month;$('pmonth').value=m;
+  try{PU=await api('GET',null,'?purchases='+m);renderPurchases()}catch(e){$('puBox').innerHTML=`<div class="empty">${esc(e.message)}</div>`}
+}
+const n0p=n=>n==null?'':Math.round(n).toLocaleString('en-US');
+const puVerdict=p=>Math.abs(p.diff)<=1?(p.issues.some(x=>x.type==='read')?['warn','有看不清楚的']:['ok','金額對得上']):['bad',p.diff>0?`多算 ${n0p(p.diff)}`:`少算 ${n0p(-p.diff)}`];
+function renderPurchases(){
+  const list=PU.purchases;
+  if(!list.length){$('puBox').innerHTML='<div class="empty">這個月還沒有進貨單。老闆在 LINE 老闆選單傳上游的出貨單照片，或按上面「上傳進貨單照片」。</div>';return}
+  const days=[...new Set(list.map(p=>p.date))];
+  const all=list.reduce((a,p)=>a+p.total,0),over=list.reduce((a,p)=>a+(p.diff>1?p.diff:0),0),under=list.reduce((a,p)=>a+(p.diff<-1?-p.diff:0),0);
+  $('puBox').innerHTML=`<div class="billsum" style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 2px 8px"><span>本月進貨 <b>${n0p(all)}</b>（${list.length} 張）</span>${over?`<span class="unpaid">上游多算 ${n0p(over)}</span>`:''}${under?`<span>上游少算 ${n0p(under)}</span>`:''}${!over&&!under?'<span class="paid">都對得上</span>':''}</div>`+days.map(d=>{
+    const ps=list.filter(p=>p.date===d),tot=ps.reduce((a,p)=>a+p.total,0),bad=ps.filter(p=>Math.abs(p.diff)>1).length;
+    return `<div class="pu-day"><span>${dlabel(d)}</span><small>${ps.length} 張・合計 ${n0p(tot)}${bad?`・<span class="unpaid">${bad} 張有算錯</span>`:''}</small></div>`+ps.map(puCard).join('');
+  }).join('');
+}
+function puCard(p){
+  const v=puVerdict(p),open=openPu===p.id,L=puEdit[p.id]||p;
+  return `<div class="bill"><button class="bill-h" data-pu="${p.id}" aria-expanded="${open}"><span><b>${esc(p.supplier||'（看不出廠商）')}</b><span class="pu-tag ${v[0]}">${v[1]}</span>${p.status==='ok'?'<span class="pu-tag ok">已確認</span>':''}${p.expenseId?'<span class="pu-tag ok">已記帳</span>':''}<small>${p.lines.length} 項・${p.source==='line'?'LINE 拍的':'後台上傳'}${p.by?'・'+esc(p.by):''}${p.issues.length?`・${p.issues.length} 個要注意`:''}</small></span><span class="amt">${n0p(p.total)}</span></button>
+  ${open?`<div class="pu-d">
+    ${p.hasThumb?(puImg[p.id]?`<img src="${puImg[p.id]}" data-zoom="1" alt="進貨單照片">`:'<div class="empty">照片載入中…</div>'):''}
+    <ul class="pu-iss">${p.issues.map(x=>`<li class="${x.type}">${esc(x.text)}</li>`).join('')||'<li>沒有發現問題</li>'}</ul>
+    <div class="pedrow"><label>廠商<input data-puf="supplier" data-id="${p.id}" value="${esc(L.supplier)}"></label><label>日期<input type="date" data-puf="date" data-id="${p.id}" value="${L.date}"></label><label>單上合計<input inputmode="decimal" data-puf="total" data-id="${p.id}" value="${L.total??''}"></label></div>
+    <div class="scroll"><table><thead><tr><th>品名</th><th class="n">數量</th><th>單位</th><th class="n">單價</th><th class="n">單上金額</th><th class="n">數量×單價</th><th>對到品項／平常進價</th></tr></thead><tbody>
+    ${L.lines.map((l,i)=>{const c=l.qty!=null&&l.price!=null?Math.round(l.qty*l.price):null,bad=c!=null&&l.amount!=null&&Math.abs(c-l.amount)>1;return `<tr><td><input data-pul="name" data-i="${i}" data-id="${p.id}" value="${esc(l.name)}"></td><td><input inputmode="decimal" data-pul="qty" data-i="${i}" data-id="${p.id}" value="${l.qty??''}"></td><td><input data-pul="unit" data-i="${i}" data-id="${p.id}" value="${esc(l.unit)}" style="width:3em"></td><td><input inputmode="decimal" data-pul="price" data-i="${i}" data-id="${p.id}" value="${l.price??''}"></td><td><input inputmode="decimal" data-pul="amount" data-i="${i}" data-id="${p.id}" value="${l.amount??''}"></td><td class="n ${bad?'bad':''}">${n0p(c)}</td><td><small>${esc(p.lines[i]?.pname||'—')}${p.lines[i]?.cost!=null?`・平常 ${p.lines[i].cost}`:''}${p.lines[i]?.need!=null?`・要叫 ${p.lines[i].need}`:''}</small></td></tr>`}).join('')}
+    </tbody><tfoot><tr><td colspan="4">每行加起來 ${n0p(p.sum)}・照數量×單價算 ${n0p(p.correct)}</td><td class="n">${n0p(p.total)}</td><td colspan="2"></td></tr></tfoot></table></div>
+    <div class="acts"><button class="pbtn" data-puaddline="${p.id}">＋ 加一行</button>${puEdit[p.id]?`<button class="ok" data-pusave="${p.id}">儲存修改，重新核對</button>`:''}
+      <button class="pbtn" data-puok="${p.id}">${p.status==='ok'?'改回未確認':'確認無誤'}</button>
+      <button class="pbtn" data-puexp="${p.id}">${p.expenseId?'取消記帳':'記成進貨支出'}</button>
+      <button class="x" data-purm="${p.id}">刪除</button></div>
+  </div>`:''}</div>`;
+}
+async function puOpen(id){
+  openPu=openPu===id?'':id;renderPurchases();
+  const p=PU.purchases.find(x=>x.id===id);
+  if(openPu&&p?.hasThumb&&!puImg[id]){try{puImg[id]=(await api('GET',null,'?purchaseImg='+id)).thumb;renderPurchases()}catch{}}
+}
+async function puSave(id,extra={}){
+  const p=PU.purchases.find(x=>x.id===id),L=puEdit[id]||p;
+  try{const j=await api('POST',{action:'purchaseUpdate',id,supplier:L.supplier,date:L.date,total:L.total,lines:L.lines,...extra});Object.assign(p,j.purchase);delete puEdit[id];renderPurchases();toast(extra.status?'已更新':'已重新核對')}catch(e){toast(e.message)}
+}
+// 上傳：瀏覽器先縮小（給 AI 讀的 1800px、後台看的 1400px），一次可以選好幾張
+async function shrink(file,max,q){
+  const img=await createImageBitmap(file),k=Math.min(1,max/Math.max(img.width,img.height));
+  const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  return c.toDataURL('image/jpeg',q);
+}
+async function puUpload(files){
+  for(const [i,f] of files.entries()){
+    toast(`AI 讀第 ${i+1}／${files.length} 張，約 30 秒…`);
+    try{const j=await api('POST',{action:'purchaseUpload',image:await shrink(f,1800,.85),thumb:await shrink(f,1400,.62)});
+      if(PU&&j.purchase.month===PU.month)PU.purchases.unshift(j.purchase);openPu=j.purchase.id;renderPurchases();
+      const v=puVerdict(j.purchase);toast(`${j.purchase.supplier||'進貨單'}：${v[1]}`)}catch(e){toast(e.message)}
+  }
+}
+
 // 匯入 ERP 銷售紀錄（客戶產品銷售統計表）：每家店以前買過什麼，AI 分粗細大小、叫貨頁「常用」會用
 // 可以一次選好幾個檔案（不同期間），合在一起匯；每家店會整份換成這次匯的
 async function importSales(files){
@@ -1125,12 +1246,13 @@ function renderIssues(){
 }
 function renderSlips(){
   renderIssues();
-  const onProducts=D.products.filter(p=>p.on);
-  const opts=D.categories.map(c=>{const ps=onProducts.filter(p=>p.cat===c);return ps.length?`<optgroup label="${esc(c)}">${ps.map(p=>`<option value="${p.id}">${esc(p.name)}（${esc(p.unit)}）</option>`).join('')}</optgroup>`:''}).join('');
-  const addRow=(k,label,btn,attr)=>`<div class="add"><select id="add-${k}" aria-label="${label}"><option value="">${btn==='加入'?'＋ 加品項':'＋ 補單品項'}</option>${opts}</select><input id="addq-${k}" type="text" placeholder="如 2斤4兩" aria-label="數量，可以打 2斤4兩"><button ${attr}="${k}">${btn}</button></div>`;
+  const addRow=(k,label,btn,attr)=>`<div class="add"><input id="add-${k}" list="plist" placeholder="${btn==='加入'?'＋ 打字找品項':'＋ 補單品項（打字找）'}" aria-label="${label}"><input id="addq-${k}" type="text" placeholder="如 2斤4兩" aria-label="數量，可以打 2斤4兩"><button ${attr}="${k}">${btn}</button></div>`;
   // 代客叫貨（電話叫貨）：打開這家店的叫貨單，只有還在叫貨的那天可以用
   const proxyBtn=sid=>D.date===D.openDate&&may('editOrders')?`<button class="proxy" data-proxy="${sid}">📝 用叫貨單幫他叫</button>`:'';
-  const stores=[...activeStores(),...D.stores.filter(s=>!s.on&&slipsOf(s.id).length)];
+  // 店家多：只列有叫貨的；沒叫貨的用「找店家」找到才出現（要幫他電話叫貨、加品項）
+  const q=SQ('sqSlips');
+  const stores=[...activeStores(),...D.stores.filter(s=>!s.on&&slipsOf(s.id).length)].filter(s=>storeHit(s,q)&&(q||slipsOf(s.id).length));
+  const noneN=activeStores().filter(s=>!slipsOf(s.id).length).length;
   $('slipBox').innerHTML=stores.flatMap(s=>{
     const mine=slipsOf(s.id);
     if(!mine.length)return [`<div class="slip none"><div class="slip-h"><b>${esc(s.name)}</b><span class="stop">第 ${s.route} 站</span></div><div class="empty">還沒叫貨</div>${proxyBtn(s.id)}${addRow(s.id,`幫${esc(s.name)}加品項`,'加入','data-additem')}</div>`];
@@ -1146,7 +1268,7 @@ function renderSlips(){
       return `<div class="slip ${locked?'locked':''} ${(o.seq||1)>1?'supp':''}"><div class="slip-h"><b>${esc(s.name)}${(o.seq||1)>1||o.addon?` <span class="suppno">${o.addon?'店家補單':'補單'} #${o.seq||1}</span>`:''}${ptag(k)}</b><span class="stop">第 ${s.route} 站</span></div>${items}
         ${extra}${slipActs(s,o,k)}</div>`;
     });
-  }).join('')||'<div class="empty">還沒有店家，到「店家」新增。</div>';
+  }).join('')+(q?(stores.length?'':'<div class="slipnone">找不到這家店</div>'):noneN?`<div class="slipnone">還有 ${noneN} 家還沒叫貨。要幫哪家電話叫貨或加品項，在上面「找店家」打店名。</div>`:'')||'<div class="empty">還沒有店家，到「店家」新增。</div>';
   renderPrintNote();
   const sm=SM();
   const logs=[...D.orders,...(D.emptyLogs||[])].flatMap(o=>(o.log||[]).map(l=>({...l,store:(sm[o.storeId]?.name||'')+((o.seq||1)>1?` 補單#${o.seq}`:'')}))).sort((a,b)=>b.at.localeCompare(a.at));
@@ -1167,7 +1289,7 @@ function ptag(k){const st=printState(k),r=D.printed?.[k];return st==='no'?'<span
 function renderPrintNote(){
   const ks=D.orders.map(okey),no=ks.filter(k=>printState(k)==='no').length,chg=ks.filter(k=>printState(k)==='chg').length;
   $('printNote').innerHTML=no||chg?`<div class="pnote">🖨 ${no?`還有 <b>${no}</b> 張出貨單沒印`:''}${no&&chg?'、':''}${chg?`<b>${chg}</b> 張印過後有修改要重印`:''}</div>`:ks.length?'<div class="pnote" style="border-color:var(--line)">✅ 出貨單都印過了</div>':'';
-  $('printNew').hidden=!(no||chg);$('printNew').textContent=`只印沒印過的（${no+chg} 張）`;
+
 }
 // 按「列印」後記下這次印了哪幾張
 let PV=null;
@@ -1214,8 +1336,13 @@ function payOf(sid,total){
 function renderBills(){
   const [y,m]=D.month.split('-');
   $('billTitle').textContent=`${+m} 月對帳`;
-  const stores=D.stores.filter(s=>s.on||monthRows(s.id).length);
+  const q=SQ('sqBills');
+  const busy=s=>monthRows(s.id).length||payOf(s.id,0).list.length;
+  const stores=D.stores.filter(s=>q?storeHit(s,q):busy(s));
   let all=0,unpaid=0;const byM={};
+  // 合計要算全部的店，不能只算搜尋到的
+  D.stores.forEach(s=>{if(!stores.includes(s)){const t=monthRows(s.id).reduce((a,r)=>a+r.amount,0),P=payOf(s.id,t);all+=t;unpaid+=P.left;P.list.forEach(p=>byM[p.method]=(byM[p.method]||0)+p.amount)}});
+  const idle=D.stores.filter(s=>s.on&&!busy(s)).length;
   $('billBox').innerHTML=stores.map(s=>{
     const rows=monthRows(s.id),total=rows.reduce((a,r)=>a+r.amount,0),P=payOf(s.id,total);
     all+=total;unpaid+=P.left;P.list.forEach(p=>byM[p.method]=(byM[p.method]||0)+p.amount);
@@ -1233,7 +1360,7 @@ function renderBills(){
       <div class="payseg" role="group" aria-label="付款方式"><span>付款方式</span><button data-setpay="${s.id}" data-pay="month" aria-pressed="${s.pay!=='cash'}">月結</button><button data-setpay="${s.id}" data-pay="cash" aria-pressed="${s.pay==='cash'}">現結</button></div>
       <div class="acts">${rows.length?`<button class="send" data-send="${s.id}">用 LINE 傳對帳單</button><button class="pbtn" data-print="stmt" data-store="${s.id}">列印對帳單</button>`:''}</div>
       ${total||P.list.length?payBox(s,P):''}</div>`:''}</div>`;
-  }).join('')||'<div class="empty">這個月沒有送貨紀錄</div>';
+  }).join('')+(!q&&idle&&stores.length?`<div class="slipnone">另外 ${idle} 家這個月沒送貨，沒列出來；要看哪家在上面「找店家」。</div>`:'')||(q?'<div class="empty">找不到這家店</div>':'<div class="empty">這個月沒有送貨紀錄</div>');
   const mx=Object.entries(byM).map(([k,v])=>`${k} ${money(v)}`).join('・');
   $('billSum').innerHTML=`<span>${+m} 月應收 ${money(all)}</span><span class="paid">已收 ${money(all-unpaid)}</span><span class="${unpaid?'unpaid':'paid'}">未收 ${money(unpaid)}</span>${mx?`<small style="flex-basis:100%;color:var(--muted)">${mx}</small>`:''}`;
 }
@@ -1347,7 +1474,9 @@ function renderStores(){
     <div class="acts"><select id="ps-${p.userId}" aria-label="綁定到店家"><option value="">建立新店家 →</option>${storeOpts}</select>
     <input id="pn-${p.userId}" placeholder="新店家店名" value="${esc(p.text||'')}" aria-label="新店家店名">
     <button class="go" data-approve="${p.userId}">開通</button><button class="no" data-reject="${p.userId}">拒絕</button></div></div>`).join(''):'';
-  $('storeList').innerHTML=S.map((s,i)=>`<div class="srow ${s.on?'':'off'}">
+  // 找店家：只畫找到的（data-i 還是原本的位置，改的時候才對得到）
+  const q=SQ('sqStores');
+  $('storeList').innerHTML=S.map((s,i)=>!storeHit(s,q)&&s.name?'':`<div class="srow ${s.on?'':'off'}">
     <input type="number" min="1" inputmode="numeric" data-sf="route" data-i="${i}" value="${s.route}" aria-label="站號" title="站號">
     <input type="text" data-sf="name" data-i="${i}" value="${esc(s.name)}" placeholder="店名" aria-label="店名">
     <input type="text" data-sf="phone" data-i="${i}" value="${esc(s.phone)}" placeholder="電話" aria-label="電話">
@@ -1367,16 +1496,15 @@ function renderStores(){
 const stripQty=t=>String(t).replace(/^[\s　]*[0-9０-９.．一二兩三四五六七八九十百半]+[\s　]*(斤|兩|公斤|台斤|件|箱|籃|袋|包|綑|紮|簍|盒|罐|把|顆|kg|KG)[\s　]*/,'').replace(/[\s　]*[0-9０-９.．一二兩三四五六七八九十百半]+[\s　]*(斤|兩|公斤|台斤|件|箱|籃|袋|包|綑|紮|簍|盒|罐|把|顆|kg|KG)?.*$/,'').replace(/[：:x×*＊\s]+$/,'').trim()||String(t).trim();
 function learnRow(d,u,k){
   const id=`${d.id}-${k}`;
-  const opts=D.products.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
   return `<div class="learn" id="lr-${id}">教 AI：<input id="lt-${id}" value="${esc(stripQty(u).slice(0,20))}" maxlength="20" aria-label="客人寫的叫法">是指
-    <select id="lp-${id}" aria-label="對應的品項"><option value="">選品項…</option>${opts}</select>
+    <input id="lp-${id}" list="plistAll" placeholder="打字找品項" aria-label="對應的品項">
     <select id="ls-${id}" aria-label="適用範圍"><option value="">全部店家通用</option><option value="${esc(d.storeId)}">只有${esc(d.storeName||'這家店')}</option></select>
     <button data-learn="${id}">加入</button></div>`;
 }
 async function learnAlias(id){
-  const text=$('lt-'+id).value.trim(),pid=$('lp-'+id).value,storeId=$('ls-'+id).value;
+  const text=$('lt-'+id).value.trim(),pid=pidOf($('lp-'+id).value),storeId=$('ls-'+id).value;
   if(!text){toast('請填客人寫的叫法');$('lt-'+id).focus();return}
-  if(!pid){toast('請選這是哪個品項');$('lp-'+id).focus();return}
+  if(!pid){toast($('lp-'+id).value.trim()?'找不到這個品項，請從打字跳出來的清單選':'請打字找是哪個品項');$('lp-'+id).focus();return}
   try{
     const j=await api('POST',{action:'addAlias',text,pid,storeId});
     D.products=j.products;
@@ -1913,46 +2041,85 @@ function renderBoss(){
 // 設定頁「列印」
 function renderPrints(){
   const p=PR();if($('printsForm').dataset.dirty)return;
-  $('pkList').innerHTML=PKS.map(([k,n])=>`<label><input type="checkbox" value="${k}" ${p.on.includes(k)?'checked':''}>${n}</label>`).join('');
   $('pSlip').value=p.slip;$('pStmt').value=p.stmt;$('pAddr').value=p.address;$('pFax').value=p.fax;$('pEnv').value=p.env;
-  if($('hPrints'))$('hPrints').textContent=`${p.on.length} 種・出貨單${p.slip==='erp'?' ERP':'系統'}格式`;
+  if($('hPrints'))$('hPrints').textContent=`出貨單${p.slip==='erp'?' ERP':'系統'}格式・對帳單${p.stmt==='erp'?' ERP':'系統'}格式`;
 }
 async function savePrints(){
-  const prints={on:[...$('pkList').querySelectorAll('input:checked')].map(x=>x.value),slip:$('pSlip').value,stmt:$('pStmt').value,address:$('pAddr').value,fax:$('pFax').value,env:$('pEnv').value};
+  const prints={on:PR().on,slip:$('pSlip').value,stmt:$('pStmt').value,address:$('pAddr').value,fax:$('pFax').value,env:$('pEnv').value};
   try{const j=await api('POST',{action:'prints',prints});D.rules.prints=j.prints;delete $('printsForm').dataset.dirty;renderAll();toast('列印設定已儲存')}catch(e){toast(e.message)}
 }
 const ENV={c5:['229mm 162mm','150mm'],dl:['220mm 110mm','98mm']};
-async function openPrint(kind,sid){
+// kind：一種或好幾種（列印選單勾的），合在一起預覽；fmt：這次選的出貨單、對帳單格式
+const DAY_K=['slips','slipsNew','daily','buy','supOrder','pick','purchase'],MONTH_K=['month','stmtAll','stmtBrief','envelope','arSum','sales'];
+async function openPrint(kind,sid,fmt={}){
+  let kinds=Array.isArray(kind)?kind:[kind];
   const s=sid&&SM()[sidOf(sid)];
   // 店家的電子簽名一起印在確認單上
-  if(kind==='slip'||kind==='slips'||kind==='slipsNew'){SIGS={};const ids=kind==='slip'?[sid]:Object.keys(D.signatures||{});await Promise.all(ids.filter(x=>D.signatures?.[x]?.hasPng).map(async x=>SIGS[x]=await sigImg(x)))}
+  if(kinds.some(k=>k==='slip'||k==='slips'||k==='slipsNew')){SIGS={};const ids=kinds.includes('slip')?[sid]:Object.keys(D.signatures||{});await Promise.all(ids.filter(x=>D.signatures?.[x]?.hasPng).map(async x=>SIGS[x]=await sigImg(x)))}
   const withOrder=D.stores.filter(x=>slipsOf(x.id).length).sort((a,b)=>a.route-b.route);
   const allSlips=withOrder.flatMap(x=>slipsOf(x.id).map(okey));
-  if(['slips','slipsNew','daily','buy','supOrder','pick','purchase'].includes(kind)&&!withOrder.length){toast('這天沒有訂單');return}
   const newSlips=allSlips.filter(k=>printState(k)!=='ok');
-  if(kind==='slipsNew'&&!newSlips.length){toast('出貨單都印過了');return}
-  // 出貨單：按「列印」時記下印了哪幾張
-  PV={slips:kind==='slip'?[sid]:kind==='slips'?allSlips:kind==='slipsNew'?newSlips:[]};
   const billed=D.stores.filter(x=>monthRows(x.id).length).sort((a,b)=>a.route-b.route);
-  if(['stmtAll','stmtBrief','envelope','arSum','sales'].includes(kind)&&!billed.length){toast('這個月沒有送貨紀錄');return}
-  const erpStmt=PR().stmt==='erp',slipDoc=PR().slip==='erp'?docSlipErp:docSlip;
+  const skip=[];
+  kinds=kinds.filter(k=>{
+    if(DAY_K.includes(k)&&!withOrder.length){skip.push('這天沒有訂單');return false}
+    if(k==='slipsNew'&&!newSlips.length){skip.push('出貨單都印過了');return false}
+    if(MONTH_K.includes(k)&&k!=='month'&&!billed.length){skip.push('這個月沒有送貨紀錄');return false}
+    return true;
+  });
+  // 信封的紙不一樣，跟別的一起勾就先不印信封
+  if(kinds.includes('envelope')&&kinds.length>1){kinds=kinds.filter(k=>k!=='envelope');skip.push('信封要另外印（紙張不一樣）')}
+  if(!kinds.length){toast([...new Set(skip)].join('；')||'沒有可以印的');return}
+  if(skip.length)toast([...new Set(skip)].join('；'));
+  // 出貨單：按「列印」時記下印了哪幾張
+  PV={slips:[...new Set(kinds.flatMap(k=>k==='slip'?[sid]:k==='slips'?allSlips:k==='slipsNew'?newSlips:[]))]};
+  const erpStmt=(fmt.stmt||PR().stmt)==='erp',slipDoc=(fmt.slip||PR().slip)==='erp'?docSlipErp:docSlip;
   let html;
   try{
-    const mo=(kind==='sales'||(erpStmt&&(kind==='stmt'||kind==='stmtAll')))?await monthOrders():null;
+    const mo=(kinds.includes('sales')||(erpStmt&&kinds.some(k=>k==='stmt'||k==='stmtAll')))?await monthOrders():null;
     const stmtDoc=x=>erpStmt?docStmtErp(x,mo):docStmt(x);
-    html={buy:docBuy,daily:docDaily,month:docMonth,slip:()=>slipDoc(sid),stmt:()=>stmtDoc(s),slips:()=>allSlips.map(slipDoc).join(''),slipsNew:()=>newSlips.map(slipDoc).join(''),
+    const make={buy:docBuy,daily:docDaily,month:docMonth,slip:()=>slipDoc(sid),stmt:()=>stmtDoc(s),slips:()=>allSlips.map(slipDoc).join(''),slipsNew:()=>newSlips.map(slipDoc).join(''),
       supOrder:docSupOrder,pick:docPick,purchase:docPurchase,stmtAll:()=>billed.map(stmtDoc).join(''),stmtBrief:()=>billed.map(docStmtBrief).join(''),
-      envelope:()=>billed.map(docEnvelope).join(''),arSum:docArSum,sales:()=>docSales(mo)}[kind]();
+      envelope:()=>billed.map(docEnvelope).join(''),arSum:docArSum,sales:()=>docSales(mo)};
+    html=kinds.map(k=>`<div class="pk">${make[k]()}</div>`).join('');
   }catch(e){toast(e.message||'載入失敗');return}
   $('paper').innerHTML=html;$('pv').classList.add('on');
   // 信封用信封的尺寸，不用選紙
-  const envK=kind==='envelope'&&ENV[PR().env];
+  const envK=kinds[0]==='envelope'&&ENV[PR().env];
   $('paper').dataset.env=envK?PR().env:'';
   document.querySelectorAll('[data-paper]').forEach(b=>b.hidden=!!envK);
   if(envK){$('paper').className='paper';$('paper').style.cssText=`width:${ENV[PR().env][0].split(' ')[0]};--envh:${ENV[PR().env][1]}`;fitPage();return}
   $('paper').style.cssText='';
   let k='a4';try{k=localStorage.getItem('paper')==='r80'?'r80':'a4'}catch{}
   setPaper(k);
+}
+/* ---------- 列印選單：當場勾這次要印什麼，記住這台裝置上次勾的 ---------- */
+const PC_DAY=[['slips','出貨單／收據'],['buy','採買總表'],['supOrder','叫貨單（依廠商，每家一頁）'],['pick','出貨明細表（撿貨）'],['purchase','進貨單（每家廠商一張）'],['daily','當日營業報表']];
+const PC_MONTH=[['stmtAll','對帳單（每家一張）'],['stmtBrief','客戶對帳單（只列單號金額，有簽收欄）'],['month','應收總表'],['arSum','客戶帳款統計表'],['sales','客戶產品銷售統計表'],['envelope','信封（要另外印）']];
+const pcPref=()=>{try{return JSON.parse(localStorage.getItem('printPick')||'')||{}}catch{return {}}};
+function openChooser(from){
+  const P=pcPref(),pick=new Set(P.kinds||(from==='bills'?['stmtAll']:from==='buy'?['buy']:['slips'])),pr=PR();
+  const ok={purchase:may('prices'),daily:hasPrice()},mon=may('bills');
+  const allN=D.orders.length,newN=D.orders.filter(o=>printState(okey(o))!=='ok').length;
+  const row=([k,n],dis)=>`<label class="${dis?'off':''}"><input type="checkbox" value="${k}" ${pick.has(k)&&!dis?'checked':''} ${dis?'disabled':''}> ${n}${dis?` <small>（${dis}）</small>`:''}</label>`;
+  const [y,m]=D.month.split('-');
+  $('pcBody').innerHTML=`<h4>${md(D.date)} 的貨（${allN} 張出貨單）</h4>
+    ${PC_DAY.map((x,i)=>row(x,!allN?'這天沒有訂單':ok[x[0]]===false?'沒有權限':'')+(i?'':`<div class="seg"><label><input type="radio" name="pcSlip" value="slips" ${P.slipMode!=='slipsNew'?'checked':''}> 全部 ${allN} 張</label><label><input type="radio" name="pcSlip" value="slipsNew" ${P.slipMode==='slipsNew'?'checked':''}> 只印沒印過的 ${newN} 張</label>
+      <select id="pcSlipFmt" aria-label="出貨單格式"><option value="sys">系統格式</option><option value="erp" ${(P.slipFmt||pr.slip)==='erp'?'selected':''}>ERP 格式</option></select></div>`)).join('')}
+    ${mon?`<h4>${+m} 月對帳（${D.stores.filter(x=>monthRows(x.id).length).length} 家有送貨）</h4>
+    ${PC_MONTH.map(x=>row(x,'')).join('')}
+    <div class="seg"><span>對帳單格式</span><select id="pcStmtFmt" aria-label="對帳單格式"><option value="sys">系統格式（每天一筆）</option><option value="erp" ${(P.stmtFmt||pr.stmt)==='erp'?'selected':''}>ERP 格式（品項明細）</option></select></div>`:''}
+    <p class="sub">換別天、別的月份：先在頁面上方改日期／月份再按列印。</p>`;
+  $('pchoose').classList.add('on');
+}
+function goChooser(){
+  const kinds=[...$('pcBody').querySelectorAll('input[type=checkbox]:checked')].map(x=>x.value);
+  const slipMode=$('pcBody').querySelector('input[name=pcSlip]:checked')?.value||'slips';
+  const slipFmt=$('pcSlipFmt').value,stmtFmt=$('pcStmtFmt')?.value;
+  try{localStorage.setItem('printPick',JSON.stringify({kinds,slipMode,slipFmt,stmtFmt}))}catch{}
+  if(!kinds.length){toast('請勾要印的');return}
+  $('pchoose').classList.remove('on');
+  openPrint(kinds.map(k=>k==='slips'?slipMode:k),null,{slip:slipFmt,stmt:stmtFmt});
 }
 // 記住這台裝置上次選的紙張（倉庫電腦選一次 80mm 就好）
 function setPaper(k){
@@ -1974,6 +2141,7 @@ function showTab(t){
   tab=t;
   if(t==='report'&&(!R||R.month!==(rmonth||D.month)))loadReport();
   if(t==='ai')loadAI();
+  if(t==='purchase'&&(!PU||PU.month!==(pmonth||D.month)))loadPurchases();
   document.querySelectorAll('nav.tabs button').forEach(x=>x.setAttribute('aria-selected',x.dataset.tab===t));
   document.querySelectorAll('section').forEach(sec=>sec.hidden=sec.id!==t);
   $('datebar').hidden=!(t==='board'||t==='slips'||t==='prices');
@@ -1996,8 +2164,14 @@ $('erpFile').addEventListener('change',e=>{const f=e.target.files[0];e.target.va
 $('erpSBtn').addEventListener('click',()=>$('erpSFile').click());
 $('erpSFile').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f)importErpStores(f)});
 $('erpHBtn').addEventListener('click',()=>$('erpHFile').click());
+$('puBtn').addEventListener('click',()=>$('puFile').click());
+$('puFile').addEventListener('change',e=>{const f=[...e.target.files];e.target.value='';if(f.length)puUpload(f)});
+$('pmonth').addEventListener('change',e=>{pmonth=e.target.value;openPu='';loadPurchases()});
 $('erpHFile').addEventListener('change',e=>{const f=[...e.target.files];e.target.value='';if(f.length)importSales(f)});
 $('pSearch').addEventListener('input',()=>{openP=-1;renderProducts()});
+$('sqSlips').addEventListener('input',()=>renderSlips());
+$('sqBills').addEventListener('input',()=>{openBill=null;renderBills()});
+$('sqStores').addEventListener('input',()=>renderStores());
 $('aeFind').addEventListener('input',aeHits);
 $('aeFind').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();const p=aeMatches()[0];if(p)aePick(p.id)}});
 $('saveDP').addEventListener('click',saveDayPrices);
@@ -2031,8 +2205,8 @@ document.addEventListener('click',async e=>{
   if(b.dataset.buyall){const t=totals().find(x=>x.pid===b.dataset.buyall);saveBought(t.pid,boughtOf(t.pid)>=t.qty?0:t.qty)}
   if(b.dataset.step){const o=orderOf(b.dataset.sid);const it=o.items.find(i=>i.pid===b.dataset.pid);const d=+b.dataset.step,q=billQty(it);setQty(b.dataset.sid,b.dataset.pid,d<0&&q<1?0:q+d,true,'ship')}
   if(b.dataset.additem||b.dataset.newslip){
-    const k=b.dataset.additem||b.dataset.newslip,pid=$('add-'+k).value,q=parseQty($('addq-'+k).value,PM()[pid]?.unit);
-    if(!pid){toast('請先選品項');return}if(!(q>0)){toast('數量看不懂，例如 3、2.5、2斤4兩');$('addq-'+k).focus();return}
+    const k=b.dataset.additem||b.dataset.newslip,pid=pidOf($('add-'+k).value),q=parseQty($('addq-'+k).value,PM()[pid]?.unit);
+    if(!pid){toast($('add-'+k).value.trim()?'找不到這個品項，請從打字跳出來的清單選':'請先打字找品項');$('add-'+k).focus();return}if(!(q>0)){toast('數量看不懂，例如 3、2.5、2斤4兩');$('addq-'+k).focus();return}
     if(b.dataset.newslip){if(confirm(`幫「${SM()[k].name}」開一張補單，先放「${PM()[pid].name} ${qtyText(q,PM()[pid].unit)}」？`))setQty(k,pid,q,false,'new');return}
     const cur=orderOf(k)?.items.find(i=>i.pid===pid)?.qty||0;setQty(k,pid,cur+q);
   }
@@ -2111,12 +2285,22 @@ document.addEventListener('click',async e=>{
     try{await api('POST',{action:'statement',month:D.month,storeId:s.id,images});toast(`已傳對帳單給 ${s.name}`)}catch(err){toast(err.message)}finally{b.disabled=false}
   }
   if(b.dataset.print)openPrint(b.dataset.print,b.dataset.store);
+  if(b.dataset.pchoose){openChooser(b.dataset.pchoose);return}
+  if(b.dataset.pcclose){$('pchoose').classList.remove('on');return}
+  if(b.id==='pcGo'){goChooser();return}
   if(b.dataset.paper)setPaper(b.dataset.paper);
   if(b.dataset.close)$('pv').classList.remove('on');
   if(b.dataset.doprint){fitPage();try{window.print()}catch{toast('請用瀏覽器選單的列印')}markPrinted()}
   if(b.id==='addUnit'){const u=$('newUnit').value.trim();if(!u){toast('請先填單位');$('newUnit').focus();return}if(D.units.includes(u)){toast(`「${u}」已經有了`);return}saveUnits([...D.units,u],`已新增單位「${u}」`)}
   if(b.dataset.cmenu!=null){const ci=+b.dataset.cmenu;openCat=openCat===ci?-1:ci;renderProducts();return}
   if(b.dataset.addp!=null){addProduct(+b.dataset.addp);return}
+  if(b.dataset.pu){puOpen(b.dataset.pu);return}
+  if(b.dataset.pmonth){pmonth=addMonths(pmonth||D.month,+b.dataset.pmonth);openPu='';loadPurchases();return}
+  if(b.dataset.puaddline){const id=b.dataset.puaddline,p=PU.purchases.find(x=>x.id===id);const L=puEdit[id]||=structuredClone({supplier:p.supplier,date:p.date,total:p.total,lines:p.lines});L.lines.push({name:'',qty:null,unit:'',price:null,amount:null});renderPurchases();return}
+  if(b.dataset.pusave){puSave(b.dataset.pusave);return}
+  if(b.dataset.puok){const p=PU.purchases.find(x=>x.id===b.dataset.puok);puSave(p.id,{status:p.status==='ok'?'new':'ok'});return}
+  if(b.dataset.puexp){const p=PU.purchases.find(x=>x.id===b.dataset.puexp);if(!p.expenseId&&!confirm(`記成進貨支出：付給「${p.supplier||'上游'}」${n0p(p.total)} 元？\n（老闆在 LINE 已經記過這筆的話就不要再記，會重複）`))return;try{const j=await api('POST',{action:'purchaseExpense',id:p.id,on:!p.expenseId});p.expenseId=j.expenseId;renderPurchases();toast(p.expenseId?'已記成進貨支出':'已取消記帳')}catch(e){toast(e.message)}return}
+  if(b.dataset.purm){const p=PU.purchases.find(x=>x.id===b.dataset.purm);if(!confirm(`刪除「${p.supplier||'進貨單'}」${n0p(p.total)}？${p.expenseId?'記過的進貨支出也會一起刪。':''}`))return;try{await api('POST',{action:'purchaseRemove',id:p.id});PU.purchases=PU.purchases.filter(x=>x.id!==p.id);renderPurchases();toast('已刪除')}catch(e){toast(e.message)}return}
   if(b.dataset.bossrm){const x=D.bossLine?.ids.find(i=>i.userId===b.dataset.bossrm);if(confirm(`解除「${x?.name||'這個 LINE'}」的老闆身分？他的選單會換回店家選單，也不會再收到通知。`)){try{const j=await api('POST',{action:'bossUnbind',userId:b.dataset.bossrm});D.bossLine=j.bossLine;renderBoss();toast('已解除')}catch(e){toast(e.message)}}return}
   if(b.dataset.cfold!=null){toggleCat(D.categories[+b.dataset.cfold]);return}
   if(b.dataset.cren!=null){const c=D.categories[+b.dataset.cren],to=prompt(`「${c}」改成：`,c);if(to&&to.trim()&&to.trim()!==c){if(pDirty){toast('請先按「儲存品項」');return}try{const j=await api('POST',{action:'renameCategory',from:c,to:to.trim()});D.categories=j.categories;D.products=j.products;P=structuredClone(j.products);openCat=-1;renderProducts();toast(`已改名為「${to.trim()}」`)}catch(err){toast(err.message)}}return}
@@ -2195,6 +2379,8 @@ document.addEventListener('click',async e=>{
 });
 document.addEventListener('input',e=>{
   const t=e.target;
+  // 進貨單改字：先記在草稿，按「儲存修改」才送出重新核對（不重畫，免得打字被打斷）
+  if(t.dataset.puf||t.dataset.pul){const id=t.dataset.id,p=PU.purchases.find(x=>x.id===id);const L=puEdit[id]||=structuredClone({supplier:p.supplier,date:p.date,total:p.total,lines:p.lines});const numF=['qty','price','amount','total'],f=t.dataset.puf||t.dataset.pul,v=numF.includes(f)?(t.value.trim()===''?null:+t.value.replace(/,/g,'')):t.value;if(t.dataset.puf)L[f]=v;else L.lines[+t.dataset.i][f]=v;if(!document.querySelector(`[data-pusave="${id}"]`)){const a=t.closest('.pu-d').querySelector('.acts');a.insertAdjacentHTML('afterbegin',`<button class="ok" data-pusave="${id}">儲存修改，重新核對</button>`)}return}
   if(t.dataset.fixq!=null){if(!e.isComposing)fixSearch(t);return}
   if(t.dataset.pf!=null){const p=P[+t.dataset.i],f=t.dataset.pf;p[f]=f==='on'||f==='liang'?t.checked:t.value;pDirty=true;$('saveP').disabled=false;$('pDirty').textContent='有尚未儲存的修改';if(f==='on'||f==='cat'||f==='unit')renderProducts()}
   if(t.dataset.cd!=null||t.dataset.cm!=null){rDirty=true;$('saveCosts')&&($('saveCosts').disabled=false);$('cDirty')&&($('cDirty').textContent='有尚未儲存的修改')}
