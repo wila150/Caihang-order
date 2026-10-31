@@ -360,7 +360,8 @@ async function payText(when, name) {
   }
   const owe = L.filter((r) => r.left > 0);
   if (!L.length) return { type: 'text', text: `${mm} 月還沒有進貨單。拍上游的出貨單傳過來，或打「進貨單 廠商 金額」登記。` };
-  return { type: 'text', text: [`🏭 ${mm} 月應付帳款`, `進貨 ${money(L.reduce((a, r) => a + r.total, 0))}・已付 ${money(L.reduce((a, r) => a + r.paid, 0))}`, '', ...(owe.length ? owe.map((r) => `・${r.supplier} 還要付 ${money(r.left)}`) : ['✅ 都付清了']), '', '打「聯興要付多少」看一家的明細。'].join('\n') };
+  // 每家分開列，不加總
+  return { type: 'text', text: [`🏭 ${mm} 月各廠商還要付`, '', ...(owe.length ? owe.map((r) => `・${r.supplier}：${money(r.left)}（進貨 ${money(r.total)}，已付 ${money(r.paid)}）`) : ['✅ 都付清了']), '', '打「聯興要付多少」看一家的明細。'].join('\n') };
 }
 
 // 「還要買」：現在採買的配送日，還沒買齊的品項
