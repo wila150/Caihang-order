@@ -197,7 +197,9 @@ function setMode(m){
   if(D.draft)for(const i of D.draft.items){const op=i.op||'add';if(op==='remove')delete cart[i.pid];else if(op==='set')cart[i.pid]=i.qty;else cart[i.pid]=Math.round(((cart[i.pid]||0)+i.qty)*10000)/10000}
   document.title=D.store.name+(m==='addon'?' 補單':' 叫貨單');
   $('title').textContent=D.store.name+(m==='addon'?'・補單':'・叫貨單');
-  $('subtitle').textContent=m==='addon'?`${D.dateLabel} 配送，${D.cutoff} 前可以補`:`${D.dateLabel} 配送，${D.cutoff} 前可以改`;
+  // 改單次數：改滿只能加不能減
+  const ed=D.order?.storeEdits||0,mx=D.maxEdits||0,left=mx?Math.max(0,mx-ed):null;
+  $('subtitle').textContent=m==='addon'?`${D.dateLabel} 配送，${D.cutoff} 前可以補`:`${D.dateLabel} 配送，${D.cutoff} 前可以改${D.order?.items?.length&&mx?(left?`（還可以改 ${left} 次）`:'（改過 '+mx+' 次了，只能加不能減）'):''}`;
   const bar=$('modeBar');bar.hidden=!A;bar.classList.toggle('on',m==='addon');
   if(A&&m==='order')bar.innerHTML=`<span>${esc(A.dateLabel)} 的貨${A.mainLocked?'老闆已經確認':'已截單'}，要加點？<small>${esc(A.until)} 前可以補單，會另開一張</small></span><button data-mode="addon">補單</button>`;
   if(A&&m==='addon'){
@@ -304,9 +306,18 @@ function openSheet(){
   $('err').textContent='';$('sheet').classList.add('on');$('submit').focus();
 }
 async function submit(){
+  const items=Object.entries(cart).filter(([,q])=>q>0).map(([pid,qty])=>({pid,qty}));
+  // 改單只能改幾次：已經叫過、這次有改到，先確認（只加不減、改滿之後的不用問）
+  if(MODE!=='addon'&&D.order?.items?.length&&D.maxEdits){
+    const old=new Map(D.order.items.map(i=>[i.pid,i.qty])),now=new Map(items.map(i=>[i.pid,i.qty]));
+    const changed=[...new Set([...old.keys(),...now.keys()])].some(p=>(old.get(p)||0)!==(now.get(p)||0));
+    const less=[...old].some(([p,q])=>(now.get(p)||0)<q);
+    const ed=D.order.storeEdits||0,left=D.maxEdits-ed;
+    if(changed&&left>0&&!confirm(`這是第 ${ed+1} 次改單，改完還可以改 ${left-1} 次${left-1?'':'（之後只能加，不能減少或刪掉）'}。\n\n確定要改嗎？`))return;
+    if(changed&&left<=0&&less){alert(`這張單已經改過 ${D.maxEdits} 次了，現在只能加，不能減少或刪掉。要減少請直接在 LINE 留言給老闆。`);return}
+  }
   const btn=$('submit');btn.disabled=true;btn.textContent='送出中…';
   try{
-    const items=Object.entries(cart).filter(([,q])=>q>0).map(([pid,qty])=>({pid,qty}));
     const r=await fetch('/api/shop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t:T,date:D.date,items,v:D.order?.v??null,mode:MODE,viaLiff:liffReady,draftId:D.draft?.id})});
     const j=await r.json();
     // 訂單剛被別的手機或 AI 改過：重新載入最新的單，請店家再確認一次

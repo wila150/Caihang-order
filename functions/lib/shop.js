@@ -836,6 +836,7 @@ export async function saveOrder(sid, date, items, by, who = '', seq = 1, opts = 
   next.sort((a, b) => idx(a.pid) - idx(b.pid));
 
   const changes = [];
+  let less = false;
   if (old?.items.length) {
     for (const pid of new Set([...oldMap.keys(), ...next.map((i) => i.pid)])) {
       const a = oldMap.get(pid)?.qty || 0;
@@ -843,8 +844,13 @@ export async function saveOrder(sid, date, items, by, who = '', seq = 1, opts = 
       const b = n?.qty || 0;
       const { name, unit } = n || oldMap.get(pid);
       if (a !== b) changes.push(`${name} ${qtyText(a, unit)} → ${qtyText(b, unit)}`);
+      if (b < a) less = true;
     }
   }
+  // 改單次數：店家送出後自己改（打字、拍照、叫貨頁）每次算一次，改滿只能加不能減；老闆在後台改不算
+  const max = getRulesNow().maxEdits ?? 2;
+  const edits = (old?.storeEdits || 0) + (by === '店家' && old?.items.length && changes.length ? 1 : 0);
+  if (by === '店家' && max > 0 && less && (old?.storeEdits || 0) >= max) throw new UserError(`這張單已經改過 ${max} 次了，現在只能加，不能減少或刪掉。要減少請直接在 LINE 留言給老闆。`, 409);
   const at = new Date().toISOString();
   const order = {
     date,
@@ -853,6 +859,7 @@ export async function saveOrder(sid, date, items, by, who = '', seq = 1, opts = 
     seq,
     ...((old?.items.length && old.addon) || by === '店家補單' ? { addon: true } : {}), // 店家自己開的補單
     items: next,
+    ...(edits ? { storeEdits: edits } : {}),
     createdAt: old?.items.length ? old.createdAt : at,
     updatedAt: at,
     log: [

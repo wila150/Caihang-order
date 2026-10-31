@@ -13,6 +13,7 @@ export const DEFAULT_RULES = {
   addonUntil: '12:00', // 配送當天幾點前可以補單
   autoJoin: true, // 新店家加好友後自己填店名、地址、電話就開通，不用等老闆審核
   liang: true, // 斤的品項可以叫到兩；關掉就全部只能叫整數斤（個別品項也可以在品項頁關）
+  maxEdits: 2, // 店家送出後自己最多改幾次，改滿只能加不能減（0＝不限）；老闆在後台改不算
   palette: 'garlic', // 整個 App 的配色：garlic 墨綠暖白、blue 科技藍、mint 薄荷綠、gray 商務灰
   // 列印：on＝要顯示的報表按鈕（見 PRINTS），slip／stmt＝出貨單、對帳單用系統格式或 ERP 格式，address／fax 印在信封，env＝信封尺寸
   prints: { on: ['buy', 'daily'], slip: 'sys', stmt: 'sys', address: '', fax: '', env: 'c5' },
@@ -39,8 +40,11 @@ export async function saveRules(input) {
     addonUntil: String(input.addonUntil || ''),
     autoJoin: input.autoJoin !== false,
     liang: input.liang !== false,
+    maxEdits: Math.max(0, Math.min(20, Math.floor(Number(input.maxEdits)) || 0)),
   };
-  if (!isTime(r.cutoff)) throw new UserError('截單時間格式不對，例如 22:00');
+  // 截單 00:00 當成半夜 12 點（配送當天 00:00），不是前一天一早
+  if (r.cutoff === '00:00') r.cutoff = '24:00';
+  if (!isTime(r.cutoff) && r.cutoff !== '24:00') throw new UserError('截單時間格式不對，例如 22:00');
   if (!isTime(r.addonUntil)) throw new UserError('補單截止時間格式不對，例如 12:00');
   if (r.closed.length === 7) throw new UserError('不能每天都公休');
   await getFirestore().doc('settings/rules').set(r, { merge: true }); // merge：不要蓋掉配色

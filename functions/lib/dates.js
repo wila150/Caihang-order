@@ -39,11 +39,14 @@ export function openDate() {
 const WD = '日一二三四五六';
 export const md = (D) => `${+D.slice(5, 7)}/${+D.slice(8, 10)}`;
 export const label = (D) => `${md(D)}（${WD[weekday(D)]}）`;
+// 截單 24:00＝配送當天 00:00（前一天半夜 12 點），顯示成「半夜 12 點」比較不會看錯
+export const cutoffText = (t = R.cutoff) => (t === '24:00' ? '半夜 12 點' : t);
 export const cutoffLabel = (D) => {
   const c = addDays(D, -1);
-  return `${c === today() ? (minutes(R.cutoff) >= 18 * 60 ? '今晚' : '今天') : md(c)} ${R.cutoff}`;
+  if (R.cutoff === '24:00') return `${c === today() ? '今天' : md(c)}半夜 12 點`;
+  return `${c === today() ? (minutes(R.cutoff) >= 18 * 60 ? '今晚' : '今天') : md(c)} ${cutoffText()}`;
 };
-export const cutoffTime = () => R.cutoff;
+export const cutoffTime = () => cutoffText();
 
 // 現在在採買哪一天的貨：已經截單、還沒送的配送日裡最晚的那天（晚上截單後去市場買的是明天的貨）。
 // 今天的貨過了補單截止（預設中午）就算送完了，改看還在叫貨的那天

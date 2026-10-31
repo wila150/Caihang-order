@@ -6,7 +6,7 @@ import sharp from 'sharp';
 import { parseOrder } from './ai.js';
 import { reply, push, getContent, notifyAdmins } from './line.js';
 import { orderLink } from './token.js';
-import { openDate, today } from './dates.js';
+import { openDate, today, getRulesNow } from './dates.js';
 import { roundQty } from './qty.js';
 import * as shop from './shop.js';
 import { UserError } from './http.js';
@@ -113,7 +113,7 @@ export async function processJob(job, jobId) {
   await ref.set(draft);
   const existing = choice ? null : toAddon ? await shop.addonSlipOf(store.id, D) : await shop.getOrder(D, store.id);
   const editUrl = `${orderLink(job.origin, job.userId)}&d=${ref.id}${toAddon ? '&m=addon' : ''}`;
-  await answer(job, [draftMessage(store, draft, { existing: existing?.items || [], toAddon, choice, editUrl })]);
+  await answer(job, [draftMessage(store, draft, { existing: existing?.items || [], toAddon, choice, editUrl, edits: { done: existing?.storeEdits || 0, max: toAddon ? 0 : getRulesNow().maxEdits ?? 2 } })]);
 }
 
 // AI 整理的品項套到現有的單上：add 加上去、set 改成、remove 不要了

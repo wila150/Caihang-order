@@ -51,6 +51,7 @@ export async function GET(request) {
       date: D,
       dateLabel: label(D),
       cutoff: cutoffLabel(D),
+      maxEdits: getRulesNow().maxEdits ?? 2,
       categories: await shop.getCategories(),
       products: products.map(({ id, cat, name, unit, on, alias, packs, liang }) => ({ id, cat, name, unit, on, alias, packs: packs || [], liang: liang !== false })),
       order: order?.items.length ? noPrice(order) : null,

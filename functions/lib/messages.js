@@ -83,7 +83,13 @@ export function statementMessage(store, month, rows, total, got = 0) {
 // AI 整理好的叫貨單，請店家確認
 // AI 整理好的叫貨單：直接寫出送出後會變成多少（加上去／改成／不要了）
 //   choice：截單後還能補單的日期，讓店家選「補這天」或「叫下一個配送日」
-export function draftMessage(store, draft, { existing = [], toAddon = false, choice = null, editUrl }) {
+// 改單次數提醒：店家送出後自己改，改滿只能加不能減
+function editNote(draft, { done = 0, max = 0 } = {}) {
+  if (!max || !draft.items.length) return '';
+  if (done >= max) return `已經改過 ${max} 次了，只能加不能減。`;
+  return `這是第 ${done + 1} 次改單，改完還可以改 ${max - done - 1} 次。`;
+}
+export function draftMessage(store, draft, { existing = [], toAddon = false, choice = null, editUrl, edits = {} }) {
   const before = new Map(existing.map((i) => [i.pid, i.qty]));
   const body = draft.items.map((i) => {
     const op = i.op || 'add';
@@ -100,7 +106,7 @@ export function draftMessage(store, draft, { existing = [], toAddon = false, cho
   const D = draft.date;
   const tip = choice ? `${label(choice)} 的貨已經截單了。要補到 ${label(choice)}（另開補單），還是叫 ${label(D)} 的貨？`
     : toAddon ? `原本的單老闆已經確認了，會加進另一張補單。${cutoffLabel(D)} 前可以補。`
-    : existing.length ? `會改到您這次已叫的單（右邊是送出後的數量）。${cutoffLabel(D)} 截單。` : `按「確認送出」才會成立訂單。${cutoffLabel(D)} 截單。`;
+    : existing.length ? `會改到您這次已叫的單（右邊是送出後的數量）。${editNote(draft, edits)}${cutoffLabel(D)} 截單。` : `按「確認送出」才會成立訂單。${cutoffLabel(D)} 截單。`;
   body.push(sep, text(tip, { size: 'sm', color: C.text, margin: 'md', wrap: true }));
   const btn = (labelText, to) => ({ type: 'button', style: 'primary', color: C.green, height: 'sm', action: { type: 'postback', label: labelText, data: `action=aiok&id=${draft.id}${to ? `&to=${to}` : ''}`, displayText: labelText } });
   const buttons = !draft.items.length ? [] : choice ? [btn(`補 ${md(choice)} 的貨`, 'addon'), btn(`叫 ${md(D)} 的貨`, 'next')] : [btn('確認送出', '')];

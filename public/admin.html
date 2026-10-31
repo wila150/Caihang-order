@@ -678,7 +678,8 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
     <div id="rulesBox">
     <details class="sgrp"><summary><svg class="si" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="st">營業規則<small id="hRules"></small></span><svg class="sc" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></summary><div class="sgb">
     <form class="addform rules" id="rulesForm" onsubmit="return false">
-      <label>截單時間（配送日前一天）<input id="rCutoff" type="time" step="60"></label>
+      <label>截單時間（配送日前一天；填 00:00 就是半夜 12 點）<input id="rCutoff" type="time" step="60"></label>
+      <label>店家送出後自己最多改幾次（改滿只能加不能減；0＝不限）<input id="rMaxEdits" type="number" min="0" max="20" inputmode="numeric"></label>
       <label class="chkl"><input type="checkbox" id="rAddon"> 截單後店家可以自己補單</label>
       <label>補單截止（配送當天）<input id="rAddonUntil" type="time" step="60"></label>
       <fieldset class="wds"><legend>公休日（不配送）</legend><div id="rClosed"></div></fieldset>
@@ -1802,12 +1803,12 @@ function printInvite(){
 /* ---------- 截單和補單 ---------- */
 function renderRules(){queueMicrotask(setHints);
   const r=D.rules;if(!r||$('rulesForm').dataset.dirty)return;
-  $('rCutoff').value=r.cutoff;$('rAddon').checked=r.addon;$('rAutoJoin').checked=r.autoJoin!==false;$('rLiang').checked=r.liang!==false;$('rAddonUntil').value=r.addonUntil;$('rAddonUntil').disabled=!r.addon;
+  $('rCutoff').value=r.cutoff==='24:00'?'00:00':r.cutoff;$('rMaxEdits').value=r.maxEdits??2;$('rAddon').checked=r.addon;$('rAutoJoin').checked=r.autoJoin!==false;$('rLiang').checked=r.liang!==false;$('rAddonUntil').value=r.addonUntil;$('rAddonUntil').disabled=!r.addon;
   $('rClosed').innerHTML='日一二三四五六'.split('').map((w,i)=>`<label><input type="checkbox" value="${i}" ${r.closed.includes(i)?'checked':''}>週${w}</label>`).join('');
 }
 async function saveRules(){
-  const rules={cutoff:$('rCutoff').value,addon:$('rAddon').checked,autoJoin:$('rAutoJoin').checked,liang:$('rLiang').checked,addonUntil:$('rAddonUntil').value,closed:[...$('rClosed').querySelectorAll('input:checked')].map(x=>+x.value)};
-  try{const j=await api('POST',{action:'rules',rules});D.rules=j.rules;delete $('rulesForm').dataset.dirty;await load();toast(`已儲存：配送日前一天 ${j.rules.cutoff} 截單${j.rules.addon?`，補單到配送當天 ${j.rules.addonUntil}`:'，不開放店家補單'}`)}catch(e){toast(e.message)}
+  const rules={cutoff:$('rCutoff').value,maxEdits:+$('rMaxEdits').value||0,addon:$('rAddon').checked,autoJoin:$('rAutoJoin').checked,liang:$('rLiang').checked,addonUntil:$('rAddonUntil').value,closed:[...$('rClosed').querySelectorAll('input:checked')].map(x=>+x.value)};
+  try{const j=await api('POST',{action:'rules',rules});D.rules=j.rules;delete $('rulesForm').dataset.dirty;await load();toast(`已儲存：配送日前一天 ${j.rules.cutoff==='24:00'?'半夜 12 點':j.rules.cutoff} 截單${j.rules.addon?`，補單到配送當天 ${j.rules.addonUntil}`:'，不開放店家補單'}`)}catch(e){toast(e.message)}
 }
 /* ---------- 帳號 ---------- */
 async function resetData(){
@@ -1819,7 +1820,7 @@ async function resetData(){
 // 設定頁收合列：標題下面一行小字顯示目前的設定
 function setHints(){
   const r=D.rules,WDN='日一二三四五六';
-  if(r&&$('hRules'))$('hRules').textContent=`${r.cutoff} 截單${r.addon?`・補單到 ${r.addonUntil}`:''}・${r.closed?.length?'公休 '+r.closed.map(d=>'週'+WDN[d]).join('、'):'沒有公休'}${r.autoJoin!==false?'・新店家自己開通':''}${r.liang===false?'・不叫到兩':''}`;
+  if(r&&$('hRules'))$('hRules').textContent=`${r.cutoff==='24:00'?'半夜 12 點':r.cutoff} 截單${r.maxEdits?`・改單 ${r.maxEdits} 次`:''}${r.addon?`・補單到 ${r.addonUntil}`:''}・${r.closed?.length?'公休 '+r.closed.map(d=>'週'+WDN[d]).join('、'):'沒有公休'}${r.autoJoin!==false?'・新店家自己開通':''}${r.liang===false?'・不叫到兩':''}`;
   if(D.users&&$('hUsers'))$('hUsers').textContent=`${D.users.length} 個帳號`;
   if(D.units&&$('hUnits'))$('hUnits').textContent=D.units.slice(0,8).join('、')+(D.units.length>8?` …共 ${D.units.length} 個`:'');
   if(r&&$('hPal'))$('hPal').textContent=PALS.find(p=>p[0]===(r.palette||'garlic'))?.[1]||'';
