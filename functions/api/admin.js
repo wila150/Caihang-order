@@ -38,6 +38,12 @@ async function signaturesOf(date) {
   return Object.fromEntries(snap.docs.map((d) => { const { png, ...rest } = d.data(); return [rest.key || rest.storeId, { ...rest, hasPng: !!png }]; }));
 }
 
+// LINE 登入憑證放進 cookie（30 天）；登出時清掉
+function withSession(res, session, maxAge) {
+  res.headers.append('Set-Cookie', `__session=${encodeURIComponent(session)}; Max-Age=${maxAge}; Path=/; HttpOnly; Secure; SameSite=Lax`);
+  return res;
+}
+
 async function pushToStore(store, messages) {
   if (!store.members.length) throw new UserError(`「${store.name}」還沒綁定 LINE 帳號`);
   const results = await Promise.allSettled(store.members.map((m) => push(m.userId, messages)));
@@ -163,7 +169,11 @@ export async function POST(request) {
     // 用 LINE 登入（還沒登入，不用驗證）
     if (b.action === 'lineLogin') return json(await lineLogin(String(b.accessToken || '')));
     if (b.action === 'pairStart') return json(await pairStart());
-    if (b.action === 'pairCheck') return json(await pairCheck(b.id));
+    if (b.action === 'pairCheck') {
+      const r = await pairCheck(b.id);
+      return r.session ? withSession(json(r), r.session, 30 * 86400) : json(r);
+    }
+    if (b.action === 'logout') return withSession(json({ ok: true }), '', 0);
     const me = await signedIn(request);
     const store = async () => {
       const s = (await shop.getStores()).find((x) => x.id === b.storeId);

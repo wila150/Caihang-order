@@ -32,7 +32,12 @@ const normEmail = (e) => { e = String(e || '').trim(); return e.startsWith('line
 
 // 驗證登入，回傳 { email, name, role }
 export async function signedIn(request) {
-  const auth = request.headers.get('authorization') || '';
+  let auth = request.headers.get('authorization') || '';
+  // 用 LINE 登入的也存在 cookie（Firebase Hosting 只會轉 __session 這個名字）：手機主畫面的 App 被滑掉後，網頁自己存的資料可能被清掉，cookie 還在
+  if (!/^(Line|Bearer) \S/.test(auth)) {
+    const c = (request.headers.get('cookie') || '').match(/(?:^|;\s*)__session=([^;]+)/)?.[1];
+    if (c) auth = 'Line ' + decodeURIComponent(c);
+  }
   // 用 LINE 登入的：角色每次重新查，解除老闆、停用員工馬上生效
   if (auth.startsWith('Line ')) {
     const s = verifySession(auth.slice(5));
