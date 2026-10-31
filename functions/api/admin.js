@@ -268,6 +268,16 @@ export async function POST(request) {
         need(me, 'prices');
         await purchase.setSupplierMode(b.supplier, b.pay);
         return json({ ok: true });
+      // 電腦打的進貨單：一行一行（品名、數量、單位、單價、金額），合計自動算
+      case 'purchaseTyped': {
+        need(me, 'prices');
+        const lines = (Array.isArray(b.lines) ? b.lines : []).filter((l) => String(l?.name || '').trim() && (Number(l.amount) > 0 || (Number(l.qty) > 0 && Number(l.price) >= 0)));
+        if (!String(b.supplier || '').trim()) throw new UserError('請填廠商');
+        if (!lines.length) throw new UserError('至少要打一行品項');
+        const p = await purchase.savePurchase({ inv: { supplier: b.supplier, date: b.date, note: b.note, lines: lines.map((l) => ({ name: l.name, qty: l.qty === '' ? null : Number(l.qty), unit: l.unit, price: l.price === '' ? null : Number(l.price), amount: l.amount === '' || l.amount == null ? null : Number(l.amount) })), total: null }, by: me.name, source: 'typed' });
+        const { thumb: _t, ...rest } = p;
+        return json({ purchase: { ...rest, hasThumb: false } });
+      }
       case 'purchaseManual':
         need(me, 'prices');
         return json({ purchase: await purchase.manualPurchase(b, me.name) });

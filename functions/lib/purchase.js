@@ -96,7 +96,8 @@ export function purchaseText(p) {
 
 // 存一張（LINE 拍的、後台上傳的都走這裡）
 export async function savePurchase({ inv, thumb = '', by = '', source = 'line' }) {
-  const date = inv.date && inv.date <= today() ? inv.date : buyDate();
+  // 電腦打的照填的日期；照片讀出來的日期太新（讀錯）就用採買日
+  const date = isDate(inv.date) && (source === 'typed' || inv.date <= today()) ? inv.date : buyDate();
   const checked = await checkInvoice(inv, date);
   const ref = db().collection('purchases').doc();
   const p = { id: ref.id, date, month: date.slice(0, 7), ...checked, note: inv.note || '', thumb, status: 'new', expenseId: '', by: clean(by, 40), source, at: new Date().toISOString() };

@@ -137,6 +137,10 @@ h2{font-size:1.15rem;margin:0 0 4px;font-weight:900}
 .log h3{margin:0 0 6px;font-size:1rem}
 .log ol{margin:0;padding-left:1.2em;color:var(--muted);font-size:.88rem}
 
+.ty{background:var(--surface);border:1.5px solid var(--leaf);border-radius:10px;padding:12px;margin:0 0 12px}
+.ty table{width:100%;border-collapse:collapse;margin:8px 0}.ty th,.ty td{padding:2px 3px;text-align:left;font-size:.9rem}.ty th{color:var(--muted);font-weight:400}
+.ty td input{width:100%;border:1px solid var(--line);border-radius:6px;padding:6px;background:var(--bg);font-size:.95rem}
+.ty .n,.ty .n input{text-align:right}.ty .tysum{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:1.05rem}
 .pu-day{display:flex;justify-content:space-between;align-items:baseline;margin:16px 2px 6px;font-weight:700}
 .pu-day small{color:var(--muted);font-weight:400}
 .pu-d{padding:0 14px 14px}.pu-d img{width:100%;max-width:520px;border-radius:8px;border:1px solid var(--line);cursor:zoom-in}
@@ -661,9 +665,10 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
 
   <section id="purchase" hidden>
     <div class="datebar"><button data-pmonth="-1" aria-label="上個月">‹</button><input type="month" id="pmonth" aria-label="進貨單月份"><button data-pmonth="1" aria-label="下個月">›</button>
-      <button class="pbtn" id="puBtn">上傳進貨單照片</button><input type="file" id="puFile" accept="image/*" multiple hidden></div>
+      <button class="pbtn" id="tyBtn">⌨️ 用電腦打進貨單</button><button class="pbtn" id="puBtn">上傳進貨單照片</button><input type="file" id="puFile" accept="image/*" multiple hidden></div>
     <p class="sub">上游廠商給的出貨單拍起來：老闆在 LINE（老闆選單）直接傳照片，或在這裡上傳。AI 讀出每一行，系統自己用「數量×單價」重算，抓上游多算、少算，也跟平常進價、那天要叫的量比。</p>
     <div class="payseg" role="group" aria-label="看什麼" style="margin:6px 0 10px"><button data-puview="list" aria-pressed="true">每張進貨單</button><button data-puview="ledger" aria-pressed="false">廠商總帳（要付多少）</button></div>
+    <div id="tyBox" hidden></div>
     <div id="puBox"><div class="empty">載入中…</div></div>
   </section>
 
@@ -1275,6 +1280,79 @@ async function puUpload(files){
       const v=puVerdict(j.purchase);toast(`${j.purchase.supplier||'進貨單'}：${v[1]}`)}catch(e){toast(e.message)}
   }
 }
+
+/* ---------- 用電腦打進貨單：選廠商 → 一行一行打，Enter 跳下一格，最後一格 Enter 加一行 ---------- */
+let TY=null;
+const TYF=['name','qty','unit','price','amount'];
+function tyOpen(){
+  const sups=[...new Set(D.products.map(p=>p.supplier).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+  TY={supplier:'',date:D.today,note:'',lines:[]};
+  $('tyBox').hidden=false;
+  $('tyBox').innerHTML=`<div class="ty"><h3 style="margin:0 0 6px">⌨️ 打進貨單</h3>
+    <datalist id="tySups">${sups.map(x=>`<option value="${esc(x)}"></option>`).join('')}</datalist><datalist id="tyProds"></datalist>
+    <div class="pedrow"><label>廠商<input id="tySup" list="tySups" placeholder="打字找廠商" autocomplete="off"></label><label>日期<input id="tyDate" type="date" value="${TY.date}"></label><label>備註<input id="tyNote" placeholder="選填"></label></div>
+    <table><thead><tr><th style="width:34%">品名</th><th class="n">數量</th><th style="width:4.5em">單位</th><th class="n">單價</th><th class="n">金額</th><th></th></tr></thead><tbody id="tyRows"></tbody></table>
+    <div class="tysum"><span>合計 <b id="tyTot">0</b>　<small id="tyCnt"></small></span><span><button class="pbtn" data-tyadd="1">＋ 加一行</button> <button class="pbtn" data-tyclose="1">取消</button> <button class="ok" data-tysave="1">儲存進貨單</button></span></div>
+    <p class="sub">品名打字會跳出這家廠商的品項；單位、平常進價自動帶，金額自動算（要改直接打）。Enter 跳下一格，最後一格 Enter 加一行。</p></div>`;
+  for(let i=0;i<5;i++)tyAddRow();
+  $('tySup').focus();
+}
+function tyAddRow(focus){
+  const i=TY.lines.push({name:'',qty:'',unit:'',price:'',amount:'',auto:true})-1;
+  $('tyRows').insertAdjacentHTML('beforeend',`<tr data-tyr="${i}">${TYF.map(f=>`<td class="${f==='qty'||f==='price'||f==='amount'?'n':''}"><input data-tyf="${f}" data-i="${i}" ${f==='name'?'list="tyProds" autocomplete="off"':f==='unit'?'':'inputmode="decimal"'} aria-label="第 ${i+1} 行 ${({name:'品名',qty:'數量',unit:'單位',price:'單價',amount:'金額'})[f]}"></td>`).join('')}<td><button class="x" data-tydel="${i}" aria-label="刪掉第 ${i+1} 行">✕</button></td></tr>`);
+  if(focus)document.querySelector(`[data-tyf="name"][data-i="${i}"]`).focus();
+}
+// 選了廠商：品名清單換成這家的品項
+function tySetSup(v){
+  TY.supplier=v.trim();
+  const mine=D.products.filter(p=>p.supplier===TY.supplier),list=mine.length?mine:D.products.filter(p=>p.on);
+  $('tyProds').innerHTML=list.slice(0,800).map(p=>`<option value="${esc(p.name)}">${esc(p.unit)}${p.cost!=null?`・平常 ${p.cost}`:''}</option>`).join('');
+}
+function tyCalc(i){
+  const l=TY.lines[i],q=parseFloat(l.qty),pr=parseFloat(l.price);
+  if(l.auto&&q>=0&&pr>=0){l.amount=String(Math.round(q*pr));const el=document.querySelector(`[data-tyf="amount"][data-i="${i}"]`);if(el)el.value=l.amount}
+  const tot=TY.lines.reduce((a,x)=>a+(parseFloat(x.amount)||0),0),n=TY.lines.filter(x=>x.name.trim()).length;
+  $('tyTot').textContent=n0p(tot);$('tyCnt').textContent=n?`${n} 項`:'';
+}
+async function tySave(){
+  if(!TY.supplier){toast('請先填廠商');$('tySup').focus();return}
+  const lines=TY.lines.filter(l=>l.name.trim());
+  if(!lines.length){toast('至少要打一行品項');return}
+  const bad=lines.find(l=>!(parseFloat(l.amount)>0));
+  if(bad&&!confirm(`「${bad.name}」沒有金額，還是要存嗎？`))return;
+  try{
+    const j=await api('POST',{action:'purchaseTyped',supplier:TY.supplier,date:$('tyDate').value,note:$('tyNote').value,lines:lines.map(({auto,...l})=>l)});
+    toast(`已存：${j.purchase.supplier} ${n0p(j.purchase.total)}${j.purchase.issues.length?`（${j.purchase.issues.length} 個要注意）`:''}`);
+    $('tyBox').hidden=true;TY=null;pmonth=j.purchase.month;puView='list';openPu=j.purchase.id;loadPurchases();
+  }catch(e){toast(e.message)}
+}
+document.addEventListener('input',e=>{
+  const t=e.target;if(!TY)return;
+  if(t.id==='tySup')tySetSup(t.value);
+  if(t.dataset.tyf){
+    const i=+t.dataset.i,f=t.dataset.tyf,l=TY.lines[i];l[f]=t.value;
+    if(f==='amount')l.auto=t.value==='';
+    // 選到品項：帶單位、平常進價
+    if(f==='name'){const p=D.products.find(p=>p.name===t.value.trim()&&(!TY.supplier||p.supplier===TY.supplier))||D.products.find(p=>p.name===t.value.trim());
+      if(p){const u=document.querySelector(`[data-tyf="unit"][data-i="${i}"]`),pr=document.querySelector(`[data-tyf="price"][data-i="${i}"]`);
+        if(!l.unit){l.unit=p.unit;u.value=p.unit}if(!l.price&&p.cost!=null){l.price=String(p.cost);pr.value=p.cost}}}
+    tyCalc(i);
+  }
+});
+// Enter 跳下一格；最後一行的金額按 Enter 加一行
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||!TY||e.isComposing)return;
+  const t=e.target;
+  if(t.id==='tySup'||t.id==='tyDate'||t.id==='tyNote'){e.preventDefault();(t.id==='tySup'?$('tyDate'):t.id==='tyDate'?document.querySelector('[data-tyf="name"][data-i="0"]'):null)?.focus();return}
+  if(!t.dataset.tyf)return;
+  e.preventDefault();
+  const i=+t.dataset.i,l=TY.lines[i];
+  // 已經自動帶好的單位、自動算好的金額跳過：品名 → 數量 → 單價 → 下一行
+  let k=TYF.indexOf(t.dataset.tyf)+1;
+  while(k<TYF.length&&((TYF[k]==='unit'&&l.unit)||(TYF[k]==='amount'&&l.auto&&l.amount)||(TYF[k]==='price'&&t.dataset.tyf==='qty'&&l.price&&l.auto)))k++;
+  const next=k<TYF.length?document.querySelector(`[data-tyf="${TYF[k]}"][data-i="${i}"]`):document.querySelector(`[data-tyf="name"][data-i="${i+1}"]`);
+  if(next){next.focus();next.select?.()}else tyAddRow(true);
+});
 
 // 匯入 ERP 銷售紀錄（客戶產品銷售統計表）：每家店以前買過什麼，AI 分粗細大小、叫貨頁「常用」會用
 // 可以一次選好幾個檔案（不同期間），合在一起匯；每家店會整份換成這次匯的
@@ -2242,6 +2320,7 @@ $('erpSBtn').addEventListener('click',()=>$('erpSFile').click());
 $('erpSFile').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f)importErpStores(f)});
 $('erpHBtn').addEventListener('click',()=>$('erpHFile').click());
 $('puBtn').addEventListener('click',()=>$('puFile').click());
+$('tyBtn').addEventListener('click',tyOpen);
 $('puFile').addEventListener('change',e=>{const f=[...e.target.files];e.target.value='';if(f.length)puUpload(f)});
 $('pmonth').addEventListener('change',e=>{pmonth=e.target.value;openPu='';loadPurchases()});
 $('erpHFile').addEventListener('change',e=>{const f=[...e.target.files];e.target.value='';if(f.length)importSales(f)});
@@ -2372,6 +2451,10 @@ document.addEventListener('click',async e=>{
   if(b.dataset.cmenu!=null){const ci=+b.dataset.cmenu;openCat=openCat===ci?-1:ci;renderProducts();return}
   if(b.dataset.addp!=null){addProduct(+b.dataset.addp);return}
   if(b.dataset.pu){puOpen(b.dataset.pu);return}
+  if(b.dataset.tyadd){tyAddRow(true);return}
+  if(b.dataset.tyclose){if(TY?.lines.some(l=>l.name)&&!confirm('打到一半的進貨單不要了？'))return;$('tyBox').hidden=true;TY=null;return}
+  if(b.dataset.tysave){tySave();return}
+  if(b.dataset.tydel!=null){const i=+b.dataset.tydel;Object.assign(TY.lines[i],{name:'',qty:'',unit:'',price:'',amount:'',auto:true});document.querySelectorAll(`[data-i="${i}"][data-tyf]`).forEach(x=>x.value='');tyCalc(i);return}
   if(b.dataset.puview){puView=b.dataset.puview;openPu='';lgSel='';loadPurchases();return}
   if(b.dataset.lgsel!=null){lgSel=b.dataset.lgsel;renderLedger();window.scrollTo(0,0);return}
   if(b.dataset.lgprint){printLedger();return}
