@@ -105,6 +105,10 @@ h2{font-size:1.15rem;margin:0 0 4px;font-weight:900}
 .slip.none{border-top-color:var(--line)}
 .slip-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;gap:6px}
 .slip-h b{font-size:1.1rem}
+/* 出貨單印過沒：未印、已印、印過後有修改 */
+.ptag{font-size:.75rem;border-radius:8px;padding:1px 8px;margin-left:6px;vertical-align:2px;font-weight:700;white-space:nowrap}
+.ptag.no{background:var(--alert);color:#fff}.ptag.ok{background:var(--line);color:var(--muted);font-weight:400}.ptag.chg{background:var(--tag);color:#2A2400}
+#printNote .pnote{border:1.5px solid var(--alert);border-radius:10px;padding:8px 12px;margin:0 0 10px;font-size:.92rem}
 .stop{font-size:.8rem;background:var(--leaf-soft);color:var(--leaf);padding:2px 8px;border-radius:10px;font-weight:700;white-space:nowrap}
 .it{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
 .stepper{display:flex;align-items:center;gap:6px}
@@ -598,7 +602,8 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
 
   <section id="slips" hidden>
     <h2>各店出貨單</h2>
-    <div class="bar"><button class="pbtn" data-print="slips">列印全部出貨單／收據</button><button class="pbtn" data-print="daily" data-pk="daily">列印當日營業報表</button><button class="pbtn" id="xlsDay">匯出 Excel</button><button class="send" id="receiptAll">全部傳 LINE 收據／出貨單</button></div>
+    <div id="printNote"></div>
+    <div class="bar"><button class="pbtn" data-print="slips">列印全部出貨單／收據</button><button class="pbtn" data-print="slipsNew" id="printNew">只印沒印過的</button><button class="pbtn" data-print="daily" data-pk="daily">列印當日營業報表</button><button class="pbtn" id="xlsDay">匯出 Excel</button><button class="send" id="receiptAll">全部傳 LINE 收據／出貨單</button></div>
     <div id="issueBox"></div>
     <div class="slips" id="slipBox"></div>
     <div class="log" id="logBox"></div>
@@ -1079,14 +1084,40 @@ function renderSlips(){
       }).join('');
       // 補單跟原本的單分開：最後一張下面隨時可以另開補單
       const extra=(!locked&&idx===0?proxyBtn(s.id):'')+(!locked?addRow(k,`幫${esc(s.name)}加品項`,'加入','data-additem'):'')+(last&&may('editOrders')?`<details class="newslip" ${locked?'open':''}><summary>＋ 開補單</summary>${addRow(s.id,`幫${esc(s.name)}開補單`,'開補單','data-newslip')}</details>`:'');
-      return `<div class="slip ${locked?'locked':''} ${(o.seq||1)>1?'supp':''}"><div class="slip-h"><b>${esc(s.name)}${(o.seq||1)>1||o.addon?` <span class="suppno">${o.addon?'店家補單':'補單'} #${o.seq||1}</span>`:''}</b><span class="stop">第 ${s.route} 站</span></div>${items}
+      return `<div class="slip ${locked?'locked':''} ${(o.seq||1)>1?'supp':''}"><div class="slip-h"><b>${esc(s.name)}${(o.seq||1)>1||o.addon?` <span class="suppno">${o.addon?'店家補單':'補單'} #${o.seq||1}</span>`:''}${ptag(k)}</b><span class="stop">第 ${s.route} 站</span></div>${items}
         ${extra}${slipActs(s,o,k)}</div>`;
     });
   }).join('')||'<div class="empty">還沒有店家，到「店家」新增。</div>';
+  renderPrintNote();
   const sm=SM();
   const logs=[...D.orders,...(D.emptyLogs||[])].flatMap(o=>(o.log||[]).map(l=>({...l,store:(sm[o.storeId]?.name||'')+((o.seq||1)>1?` 補單#${o.seq}`:'')}))).sort((a,b)=>b.at.localeCompare(a.at));
   $('logBox').innerHTML=`<h3>改單紀錄</h3>`+(logs.length?`<ol>${logs.map(l=>`<li>${hm(l.at)} ${esc(l.store)}（${l.by==='後台'?`後台改${l.who?'・'+esc(l.who):''}`:l.by==='店家補單'?'店家補單':l.who?'店家・'+esc(l.who):'店家自己改'}）：${esc(l.text)}</li>`).join('')}</ol>`:`<div class="empty">這天沒有修改紀錄。</div>`);
 }
+/* ---------- 出貨單印過沒 ---------- */
+// 簽章：數量（q）和單價（p）分開，沒單價權限的人印的只記數量
+const sigQ=o=>sortItems(o.items).map(i=>`${i.pid}:${billQty(i)}`).join(',');
+const sigP=o=>o.items.every(i=>i.price!=null)?sortItems(o.items).map(i=>`${i.pid}:${i.price}`).join(','):null;
+// no 未印、ok 已印、chg 印過後數量或單價有改
+function printState(k){
+  const r=D.printed?.[k],o=orderOf(k);if(!o)return '';
+  if(!r)return 'no';
+  const p=sigP(o);
+  return r.q!==sigQ(o)||(r.p!=null&&p!=null&&r.p!==p)?'chg':'ok';
+}
+function ptag(k){const st=printState(k),r=D.printed?.[k];return st==='no'?'<span class="ptag no">未印</span>':st==='chg'?`<span class="ptag chg" title="${esc(hm(r.at))} 印過">印過後有修改，要重印</span>`:st==='ok'?`<span class="ptag ok">已印 ${esc(hm(r.at))}</span>`:''}
+function renderPrintNote(){
+  const ks=D.orders.map(okey),no=ks.filter(k=>printState(k)==='no').length,chg=ks.filter(k=>printState(k)==='chg').length;
+  $('printNote').innerHTML=no||chg?`<div class="pnote">🖨 ${no?`還有 <b>${no}</b> 張出貨單沒印`:''}${no&&chg?'、':''}${chg?`<b>${chg}</b> 張印過後有修改要重印`:''}</div>`:ks.length?'<div class="pnote" style="border-color:var(--line)">✅ 出貨單都印過了</div>':'';
+  $('printNew').hidden=!(no||chg);$('printNew').textContent=`只印沒印過的（${no+chg} 張）`;
+}
+// 按「列印」後記下這次印了哪幾張
+let PV=null;
+async function markPrinted(){
+  if(!PV?.slips?.length)return;
+  const slips=Object.fromEntries(PV.slips.map(k=>orderOf(k)).filter(Boolean).map(o=>[okey(o),{q:sigQ(o),p:sigP(o)}]));
+  try{const j=await api('POST',{action:'printed',date:D.date,slips});D.printed=j.printed;renderSlips()}catch(e){toast('印過的紀錄沒存到：'+e.message)}
+}
+
 // undo=false 是按「復原」時用的，不再跳復原
 // mode：'ship' 改實出量（出貨單的框）；'qty' 改叫貨量（加品項）
 async function setQty(k,pid,qty,undo=true,mode='qty'){
@@ -1822,10 +1853,14 @@ const ENV={c5:['229mm 162mm','150mm'],dl:['220mm 110mm','98mm']};
 async function openPrint(kind,sid){
   const s=sid&&SM()[sidOf(sid)];
   // 店家的電子簽名一起印在確認單上
-  if(kind==='slip'||kind==='slips'){SIGS={};const ids=kind==='slip'?[sid]:Object.keys(D.signatures||{});await Promise.all(ids.filter(x=>D.signatures?.[x]?.hasPng).map(async x=>SIGS[x]=await sigImg(x)))}
+  if(kind==='slip'||kind==='slips'||kind==='slipsNew'){SIGS={};const ids=kind==='slip'?[sid]:Object.keys(D.signatures||{});await Promise.all(ids.filter(x=>D.signatures?.[x]?.hasPng).map(async x=>SIGS[x]=await sigImg(x)))}
   const withOrder=D.stores.filter(x=>slipsOf(x.id).length).sort((a,b)=>a.route-b.route);
   const allSlips=withOrder.flatMap(x=>slipsOf(x.id).map(okey));
-  if(['slips','daily','buy','supOrder','pick','purchase'].includes(kind)&&!withOrder.length){toast('這天沒有訂單');return}
+  if(['slips','slipsNew','daily','buy','supOrder','pick','purchase'].includes(kind)&&!withOrder.length){toast('這天沒有訂單');return}
+  const newSlips=allSlips.filter(k=>printState(k)!=='ok');
+  if(kind==='slipsNew'&&!newSlips.length){toast('出貨單都印過了');return}
+  // 出貨單：按「列印」時記下印了哪幾張
+  PV={slips:kind==='slip'?[sid]:kind==='slips'?allSlips:kind==='slipsNew'?newSlips:[]};
   const billed=D.stores.filter(x=>monthRows(x.id).length).sort((a,b)=>a.route-b.route);
   if(['stmtAll','stmtBrief','envelope','arSum','sales'].includes(kind)&&!billed.length){toast('這個月沒有送貨紀錄');return}
   const erpStmt=PR().stmt==='erp',slipDoc=PR().slip==='erp'?docSlipErp:docSlip;
@@ -1833,7 +1868,7 @@ async function openPrint(kind,sid){
   try{
     const mo=(kind==='sales'||(erpStmt&&(kind==='stmt'||kind==='stmtAll')))?await monthOrders():null;
     const stmtDoc=x=>erpStmt?docStmtErp(x,mo):docStmt(x);
-    html={buy:docBuy,daily:docDaily,month:docMonth,slip:()=>slipDoc(sid),stmt:()=>stmtDoc(s),slips:()=>allSlips.map(slipDoc).join(''),
+    html={buy:docBuy,daily:docDaily,month:docMonth,slip:()=>slipDoc(sid),stmt:()=>stmtDoc(s),slips:()=>allSlips.map(slipDoc).join(''),slipsNew:()=>newSlips.map(slipDoc).join(''),
       supOrder:docSupOrder,pick:docPick,purchase:docPurchase,stmtAll:()=>billed.map(stmtDoc).join(''),stmtBrief:()=>billed.map(docStmtBrief).join(''),
       envelope:()=>billed.map(docEnvelope).join(''),arSum:docArSum,sales:()=>docSales(mo)}[kind]();
   }catch(e){toast(e.message||'載入失敗');return}
@@ -2003,7 +2038,7 @@ document.addEventListener('click',async e=>{
   if(b.dataset.print)openPrint(b.dataset.print,b.dataset.store);
   if(b.dataset.paper)setPaper(b.dataset.paper);
   if(b.dataset.close)$('pv').classList.remove('on');
-  if(b.dataset.doprint){fitPage();try{window.print()}catch{toast('請用瀏覽器選單的列印')}}
+  if(b.dataset.doprint){fitPage();try{window.print()}catch{toast('請用瀏覽器選單的列印')}markPrinted()}
   if(b.id==='addUnit'){const u=$('newUnit').value.trim();if(!u){toast('請先填單位');$('newUnit').focus();return}if(D.units.includes(u)){toast(`「${u}」已經有了`);return}saveUnits([...D.units,u],`已新增單位「${u}」`)}
   if(b.dataset.cmenu!=null){const ci=+b.dataset.cmenu;openCat=openCat===ci?-1:ci;renderProducts();return}
   if(b.dataset.addp!=null){addProduct(+b.dataset.addp);return}

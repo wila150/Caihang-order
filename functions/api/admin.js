@@ -123,6 +123,8 @@ export async function GET(request) {
       // 被取消／刪除的單只留紀錄
       emptyLogs: dayOrders.filter((o) => !o.items.length).map((o) => ({ storeId: o.storeId, seq: o.seq || 1, log: o.log || [] })),
       signatures: await signaturesOf(date),
+      // 出貨單印過的紀錄：{ 單號key: { q, p, at, by } }，畫面比對現在的內容，看是不是印過後又改了
+      printed: (await getFirestore().doc('printed/' + date).get()).data()?.slips || {},
       dayPrices: showPrices ? dayPrices : {},
       dayCosts: can(me.role, 'prices') ? await shop.getDayCosts(date) : {},
       bought: await shop.getBought(date),
@@ -265,6 +267,15 @@ export async function POST(request) {
         need(me, 'bills');
         if (!isMonth(b.month)) throw new UserError('月份不正確');
         return json({ paid: await shop.removePayment(b.month, b.storeId, String(b.id || '')) });
+      // 印了出貨單：記下印的時候的數量（q）和單價（p）簽章，之後有改就提醒重印
+      case 'printed': {
+        need(me, 'view');
+        if (!isDate(b.date) || !b.slips || typeof b.slips !== 'object') throw new UserError('格式錯誤');
+        const at = new Date().toISOString(), by = me.name || me.email;
+        const slips = Object.fromEntries(Object.entries(b.slips).slice(0, 500).map(([k, v]) => [String(k).slice(0, 40), { q: String(v?.q ?? '').slice(0, 4000), p: v?.p == null ? null : String(v.p).slice(0, 4000), at, by }]));
+        await getFirestore().doc('printed/' + b.date).set({ slips }, { merge: true });
+        return json({ printed: (await getFirestore().doc('printed/' + b.date).get()).data()?.slips || {} });
+      }
       case 'receipt': {
         need(me, 'statement');
         if (!isDate(b.date)) throw new UserError('日期不正確');
