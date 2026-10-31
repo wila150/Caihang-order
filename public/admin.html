@@ -436,6 +436,7 @@ h2{font-size:1.15rem;margin:0 0 4px;font-weight:900}
   .paper{width:auto!important;padding:0!important}
   .doc.break,.env{break-after:page}
   .pk+.pk{break-before:page}
+  .doc button{display:none}
   .doc+.doc{border-top:0;margin-top:0;padding-top:0}
   /* 80mm 是一張長紙，不分頁，單和單之間用虛線隔開 */
   .r80 .doc.break{break-after:auto}
@@ -1192,15 +1193,16 @@ function renderLedger(){
     const q=lgQ.trim();
     const rows=L.filter(x=>!q||x.supplier.includes(q));
     $('puBox').innerHTML=`<input id="lgQ" class="psearch" type="search" placeholder="找廠商" aria-label="找廠商" value="${esc(lgQ)}">${manual}
-      ${rows.map(x=>`<button class="bill bill-h" data-lgsel="${esc(x.supplier)}" style="width:100%"><span><b>${esc(x.supplier)}</b><small>${+m} 月進貨 ${x.invoices.length} 張${x.over?`・<span class="unpaid">上游多算 ${n0p(x.over)}</span>`:''}</small></span><span class="amt">${x.left>0?`<span class="unpaid">還要付 ${n0p(x.left)}</span>`:x.left<0?`多付 ${n0p(-x.left)}`:'<span class="paid">付清</span>'}</span></button>`).join('')||`<div class="empty">${q?'找不到這家廠商':`${+m} 月還沒有進貨單，也沒有記付款給廠商。`}</div>`}`;
+      ${rows.map(x=>`<button class="bill bill-h" data-lgsel="${esc(x.supplier)}" style="width:100%"><span><b>${esc(x.supplier)}</b><small>${x.pay==='cash'?'現付・':''}${+m} 月進貨 ${x.invoices.length} 筆${x.over?`・<span class="unpaid">上游多算 ${n0p(x.over)}</span>`:''}</small></span><span class="amt">${x.left>0?`<span class="unpaid">還要付 ${n0p(x.left)}</span>`:x.left<0?`多付 ${n0p(-x.left)}`:'<span class="paid">付清</span>'}</span></button>`).join('')||`<div class="empty">${q?'找不到這家廠商':`${+m} 月還沒有進貨單，也沒有記付款給廠商。`}</div>`}`;
     return;
   }
   const head=`<div class="bar"><button class="pbtn" data-lgsel="">← 所有廠商</button>${r?`<button class="pbtn" data-lgprint="1">🖨 列印這家的對帳單</button>`:''}</div><h2 style="margin:6px 2px">${esc(lgSel)}　<small style="font-weight:400;color:var(--muted)">${+m} 月</small></h2>`;
   if(!r){$('puBox').innerHTML=head+`<div class="empty">${+m} 月沒有「${esc(lgSel)}」的進貨單或付款。</div>`+manual;return}
-  $('puBox').innerHTML=head+`<div class="billsum" style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 2px 8px"><span>進貨 ${r.invoices.length} 張 <b>${n0p(r.total)}</b></span><span class="paid">已付 ${n0p(r.paid)}</span><span class="${r.left>0?'unpaid':'paid'}">${r.left>0?`還要付 <b>${n0p(r.left)}</b>`:r.left<0?`多付 ${n0p(-r.left)}`:'付清了'}</span>${r.over?`<span class="unpaid">其中上游多算 ${n0p(r.over)}</span>`:''}</div>
+  const mode=`<div class="payseg" role="group" aria-label="付款方式"><span>付款方式</span><button data-spmode="month" aria-pressed="${r.pay!=='cash'}">月結（後台登記付款）</button><button data-spmode="cash" aria-pressed="${r.pay==='cash'}">現付（進貨就算付了）</button></div>`;
+  $('puBox').innerHTML=head+mode+`<div class="billsum" style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 2px 8px"><span>進貨 ${r.invoices.length} 筆 <b>${n0p(r.total)}</b></span><span class="paid">已付 ${n0p(r.paid)}</span><span class="${r.left>0?'unpaid':'paid'}">${r.left>0?`還要付 <b>${n0p(r.left)}</b>`:r.left<0?`多付 ${n0p(-r.left)}`:'付清了'}</span>${r.over?`<span class="unpaid">其中上游多算 ${n0p(r.over)}</span>`:''}</div>
     <div class="bill"><div class="pu-d" style="padding-top:10px">${lgDetail(r)}
-    <div class="pedrow"><label>付款日期<input type="date" id="spDate" value="${D.today}"></label><label>這次付<input id="spAmt" inputmode="decimal" value="${r.left>0?r.left:''}"></label><label>備註<input id="spNote" placeholder="例如 現金、匯款"></label></div>
-    <div class="acts"><button class="ok" data-sppay="${esc(r.supplier)}">記付款</button></div></div></div>`+manual;
+    ${r.pay==='cash'?'<p class="sub">這家是現付，進貨就算付了，不用登記付款。</p>':`<div class="pedrow"><label>付款日期<input type="date" id="spDate" value="${D.today}"></label><label>這次付<input id="spAmt" inputmode="decimal" value="${r.left>0?r.left:''}"></label><label>備註<input id="spNote" placeholder="例如 現金、匯款"></label></div>
+    <div class="acts"><button class="ok" data-sppay="${esc(r.supplier)}">記付款</button></div>`}</div></div>`+manual;
 }
 // 一家廠商的細項（畫面和列印共用）
 function lgDetail(r){
@@ -1208,7 +1210,7 @@ function lgDetail(r){
       ${r.items.map(x=>`<tr><td>${esc(x.name)}${x.times>1?` <small>（${x.times} 次）</small>`:''}</td><td class="n">${+x.qty.toFixed(2)} ${esc(x.unit)}</td><td class="n">${x.qty?+(x.amount/x.qty).toFixed(1):''}</td><td class="n">${n0p(x.amount)}</td></tr>`).join('')}
       </tbody></table></div>`:''}
     <h4 style="margin:10px 0 6px">每張進貨單和付款</h4><div class="scroll"><table><thead><tr><th>日期</th><th>內容</th><th class="n">數量</th><th class="n">單價</th><th class="n">進貨</th><th class="n">付款</th></tr></thead><tbody>
-    ${[...r.invoices.map(x=>({d:x.date,inv:x})),...r.payments.map(x=>({d:x.date,pay:x}))].sort((a,b)=>a.d.localeCompare(b.d)).map(x=>x.inv?`<tr><td><b>${md(x.d)}</b></td><td><b>進貨單${x.inv.manual?'（手動）':''}</b>${Math.abs(x.inv.diff)>1?` <span class="pu-tag bad">上游${x.inv.diff>0?'多算':'少算'} ${n0p(Math.abs(x.inv.diff))}</span>`:''}${x.inv.note?` <small>${esc(x.inv.note)}</small>`:''}</td><td></td><td></td><td class="n"><b>${n0p(x.inv.total)}</b></td><td></td></tr>`+x.inv.lines.map(l=>`<tr><td></td><td style="padding-left:1.2em">${esc(l.name)}</td><td class="n">${l.qty??''} ${esc(l.unit||'')}</td><td class="n">${l.price??''}</td><td class="n">${n0p(l.amount)}</td><td></td></tr>`).join(''):`<tr><td><b>${md(x.d)}</b></td><td>💰 ${esc(x.pay.item)}${x.pay.note?'・'+esc(x.pay.note):''}</td><td></td><td></td><td></td><td class="n"><b>${n0p(x.pay.amount)}</b></td></tr>`).join('')}
+    ${[...r.invoices.map(x=>({d:x.date,inv:x})),...r.payments.map(x=>({d:x.date,pay:x}))].sort((a,b)=>a.d.localeCompare(b.d)).map(x=>x.inv?`<tr><td><b>${md(x.d)}</b></td><td><b>${x.inv.fromExpense?'進貨（記帳）':`進貨單${x.inv.manual?'（手動）':''}`}</b>${Math.abs(x.inv.diff)>1?` <span class="pu-tag bad">上游${x.inv.diff>0?'多算':'少算'} ${n0p(Math.abs(x.inv.diff))}</span>`:''}${x.inv.note?` <small>${esc(x.inv.note)}</small>`:''}</td><td></td><td></td><td class="n"><b>${n0p(x.inv.total)}</b></td><td></td></tr>`+x.inv.lines.map(l=>`<tr><td></td><td style="padding-left:1.2em">${esc(l.name)}</td><td class="n">${l.qty??''} ${esc(l.unit||'')}</td><td class="n">${l.price??''}</td><td class="n">${n0p(l.amount)}</td><td></td></tr>`).join(''):`<tr><td><b>${md(x.d)}</b></td><td>💰 付款${x.pay.note?'・'+esc(x.pay.note):''}${x.pay.by?' <small>'+esc(x.pay.by)+'</small>':''} <button class="x" data-sppdel="${x.pay.id}" aria-label="刪除這筆付款">✕</button></td><td></td><td></td><td></td><td class="n"><b>${n0p(x.pay.amount)}</b></td></tr>`).join('')}
     </tbody><tfoot><tr><td colspan="4">合計（還要付 ${n0p(Math.max(0,r.left))}）</td><td class="n">${n0p(r.total)}</td><td class="n">${n0p(r.paid)}</td></tr></tfoot></table></div>`;
 }
 // 列印這家廠商的對帳單
@@ -2372,8 +2374,10 @@ document.addEventListener('click',async e=>{
   if(b.dataset.puview){puView=b.dataset.puview;openPu='';lgSel='';loadPurchases();return}
   if(b.dataset.lgsel!=null){lgSel=b.dataset.lgsel;renderLedger();window.scrollTo(0,0);return}
   if(b.dataset.lgprint){printLedger();return}
+  if(b.dataset.spmode){try{await api('POST',{action:'supplierMode',supplier:lgSel,pay:b.dataset.spmode});toast(b.dataset.spmode==='cash'?'改成現付：進貨就算付了':'改成月結：付款在這裡登記');loadPurchases()}catch(e){toast(e.message)}return}
+  if(b.dataset.sppdel){if(!confirm('刪除這筆付款？'))return;try{await api('POST',{action:'supplierPayDel',id:b.dataset.sppdel});toast('已刪除');loadPurchases()}catch(e){toast(e.message)}return}
   if(b.dataset.sppay){const s=b.dataset.sppay,amt=+$('spAmt').value.replace(/,/g,'');if(!(amt>0)){toast('請填這次付多少');$('spAmt').focus();return}
-    if(!confirm(`記付款：付給「${s}」${n0p(amt)} 元？\n（會記成進貨付款支出）`))return;
+    if(!confirm(`記付款：付給「${s}」${n0p(amt)} 元？`))return;
     try{await api('POST',{action:'supplierPay',supplier:s,amount:amt,date:$('spDate').value,note:$('spNote').value});toast('已記付款');loadPurchases()}catch(e){toast(e.message)}return}
   if(b.dataset.mpadd){try{await api('POST',{action:'purchaseManual',supplier:$('mpSup').value,date:$('mpDate').value,total:$('mpAmt').value,note:$('mpNote').value});toast('已登記進貨');loadPurchases()}catch(e){toast(e.message)}return}
   if(b.dataset.pmonth){pmonth=addMonths(pmonth||D.month,+b.dataset.pmonth);openPu='';loadPurchases();return}

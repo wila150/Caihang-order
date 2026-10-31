@@ -150,44 +150,74 @@ export async function setPurchaseExpense(id, on) {
   return { id: p.id, expenseId: p.expenseId };
 }
 
-/* ---------- 廠商總帳（應付帳款）：每家廠商這個月進了多少（進貨單）、付了多少（記帳的進貨付款，付給這家的） ---------- */
+/* ---------- 廠商總帳（應付帳款）：每家廠商這個月進了多少、付了多少、還要付多少 ---------- */
+//   進貨＝進貨單（拍照、手動登記）＋記帳的進貨（LINE 打「進貨 七美 12000」，付給這家的）
+//   已付＝後台登記的付款（supplierPays/{id} { supplier, date, month, amount, note, by }，不算支出，免得報表重複扣）
+//   現付的廠商（settings/suppliers { 名稱: { pay: 'cash' } }）：進貨就算付了
 const norm = (s) => clean(s, 20).replace(/[\s　]/g, '');
 const sameSup = (a, b) => { a = norm(a); b = norm(b); return !!a && !!b && (a === b || a.includes(b) || b.includes(a)); };
+export const getSupplierModes = async () => (await db().doc('settings/suppliers').get()).data() || {};
+export async function setSupplierMode(supplier, pay) {
+  const s = clean(supplier, 20);
+  if (!s) throw new UserError('請選廠商');
+  await db().doc('settings/suppliers').set({ [s]: { pay: pay === 'cash' ? 'cash' : 'month' } }, { merge: true });
+}
 export async function supplierLedger(month) {
-  const [ps, ex, cats] = await Promise.all([listPurchases(month), listExpenses(month), getCats()]);
-  const pays = ex.filter((e) => isPurchase(e.cat, cats) && e.payee);
+  const [ps, ex, cats, paySnap, modes] = await Promise.all([listPurchases(month), listExpenses(month), getCats(), db().collection('supplierPays').where('month', '==', month).get(), getSupplierModes()]);
   const map = new Map();
   const row = (name) => {
     const k = [...map.keys()].find((x) => sameSup(x, name)) ?? name;
     if (!map.has(k)) map.set(k, { supplier: k, invoices: [], payments: [], total: 0, over: 0, under: 0, paid: 0 });
     return map.get(k);
   };
+  const addItem = (r, name, unit, qty, amount) => {
+    const k = `${name}|${unit}`, it = (r.items ||= new Map()).get(k) || { name, unit, qty: 0, amount: 0, times: 0 };
+    it.qty = r2(it.qty + (qty || 0)); it.amount += amount || 0; it.times++;
+    r.items.set(k, it);
+  };
   for (const p of ps) {
     const r = row(p.supplier || '（看不出廠商）');
-    r.invoices.push({ id: p.id, date: p.date, total: p.total, diff: p.diff, status: p.status, manual: p.source === 'manual', expenseId: p.expenseId, note: p.note || '',
+    r.invoices.push({ id: p.id, date: p.date, total: p.total, diff: p.diff, status: p.status, manual: p.source === 'manual', note: p.note || '',
       lines: p.lines.map((l) => ({ name: l.name, qty: l.qty, unit: l.unit, price: l.price, amount: l.amount ?? l.calc })) });
     // 品項合計：同品名同單位加起來（這個月跟這家買了多少）
-    for (const l of p.lines) {
-      const k = `${l.name}|${l.unit}`, it = (r.items ||= new Map()).get(k) || { name: l.name, unit: l.unit, qty: 0, amount: 0, times: 0 };
-      it.qty = r2(it.qty + (l.qty || 0)); it.amount += l.amount ?? l.calc ?? 0; it.times++;
-      r.items.set(k, it);
-    }
+    for (const l of p.lines) addItem(r, l.name, l.unit, l.qty, l.amount ?? l.calc ?? 0);
     r.total += p.total;
     if (p.diff > 1) r.over += p.diff; else if (p.diff < -1) r.under -= p.diff;
   }
-  for (const e of pays) {
+  // 記帳的進貨（LINE「進貨 七美 12000」）：記進這家的帳；進貨單按過「記成進貨支出」的不要重複算
+  for (const e of ex.filter((x) => isPurchase(x.cat, cats) && x.payee && x.source !== 'purchase')) {
     const r = row(e.payee);
-    r.payments.push({ id: e.id, date: e.date, amount: e.amount, item: e.item, note: e.note, by: e.by });
-    r.paid += e.amount;
+    r.invoices.push({ id: 'e:' + e.id, date: e.date, total: e.amount, diff: 0, fromExpense: true, note: [e.item !== '進貨' && e.item, e.note, e.source === 'line' ? 'LINE 記帳' : '記帳', e.by].filter(Boolean).join('・'), lines: [] });
+    r.total += e.amount;
   }
-  return [...map.values()].map((r) => ({ ...r, items: [...(r.items?.values() || [])].sort((a, b) => b.amount - a.amount), left: Math.round(r.total - r.paid) })).sort((a, b) => b.total - a.total || a.supplier.localeCompare(b.supplier, 'zh-Hant'));
+  for (const d of paySnap.docs) {
+    const x = d.data(), r = row(x.supplier);
+    r.payments.push({ id: x.id, date: x.date, amount: x.amount, note: x.note, by: x.by });
+    r.paid += x.amount;
+  }
+  return [...map.values()].map((r) => {
+    const cash = Object.entries(modes).find(([k]) => sameSup(k, r.supplier))?.[1]?.pay === 'cash';
+    // 現付：進貨就付了，不用另外登記付款
+    const paid = cash ? r.total : r.paid;
+    return { ...r, pay: cash ? 'cash' : 'month', paid, items: [...(r.items?.values() || [])].sort((a, b) => b.amount - a.amount), left: Math.round(r.total - paid) };
+  }).sort((a, b) => b.left - a.left || b.total - a.total || a.supplier.localeCompare(b.supplier, 'zh-Hant'));
 }
 
-// 付廠商貨款：記成「進貨付款」支出，付給這家廠商
+// 後台登記付款給廠商（不記成支出：進貨已經算過成本了）
 export async function paySupplier({ supplier, amount, date, note }, by) {
-  const s = clean(supplier, 20);
+  const s = clean(supplier, 20), a = num(amount);
   if (!s) throw new UserError('請選廠商');
-  return addExpense({ date: isDate(date) ? date : today(), amount, cat: PURCHASE, item: `付 ${s} 貨款`, payee: s, note: clean(note, 40) }, { by, source: 'admin' });
+  if (!(a > 0)) throw new UserError('金額不正確');
+  const d = isDate(date) ? date : today();
+  const ref = db().collection('supplierPays').doc();
+  const x = { id: ref.id, supplier: s, date: d, month: d.slice(0, 7), amount: Math.round(a), note: clean(note, 40), by: clean(by, 40), at: new Date().toISOString() };
+  await ref.set(x);
+  return x;
+}
+export async function removeSupplierPay(id) {
+  const k = clean(id, 40);
+  if (!/^[\w-]+$/.test(k)) throw new UserError('找不到這筆付款', 404);
+  await db().doc('supplierPays/' + k).delete();
 }
 
 // 沒有拍照的進貨：手動登記廠商、日期、金額

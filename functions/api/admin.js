@@ -260,6 +260,14 @@ export async function POST(request) {
         need(me, 'prices');
         await purchase.paySupplier(b, me.name);
         return json({ ok: true });
+      case 'supplierPayDel':
+        need(me, 'prices');
+        await purchase.removeSupplierPay(b.id);
+        return json({ ok: true });
+      case 'supplierMode':
+        need(me, 'prices');
+        await purchase.setSupplierMode(b.supplier, b.pay);
+        return json({ ok: true });
       case 'purchaseManual':
         need(me, 'prices');
         return json({ purchase: await purchase.manualPurchase(b, me.name) });
