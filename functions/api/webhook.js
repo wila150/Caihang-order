@@ -5,6 +5,7 @@ import { bossIds, bindBoss } from '../lib/boss.js';
 import { pairApprove } from '../lib/linelogin.js';
 import { getFirestore } from 'firebase-admin/firestore';
 import * as ex from '../lib/expense.js';
+import { supplierLedger, manualPurchase } from '../lib/purchase.js';
 import { orderLink } from '../lib/token.js';
 import { originOf } from '../lib/http.js';
 import { openDate, today, addDays, label, cutoffLabel, getRulesNow, buyDate } from '../lib/dates.js';
@@ -291,6 +292,17 @@ async function expenseChat({ said, pb, action, store, uid, pick }) {
   if (!said) return null;
   if (/^(記帳說明|怎麼記帳)$/.test(said)) return { type: 'text', text: HOWTO };
   if (/^(還要買|還要買什麼|採買|採買清單|還缺什麼|要買什麼)$/.test(said)) return buyText();
+  // 應付帳款：「應付帳款」「要付多少」列每家；「聯興要付多少」「上個月 聯興 要付多少」看一家
+  const ap = said.match(/^(上個月|這個月|本月)?\s*(.*?)\s*(這個月|本月|上個月)?\s*(要付多少錢?|還要付多少錢?|應付多少|欠多少|應付帳款)$/);
+  if (ap) return payText(ap[1] || ap[3] || '', ap[2]);
+  // 手動登記進貨單（要付的帳，不是已經付的錢）：「進貨單 聯興 12350」
+  const mp = said.match(/^進貨單\s*(\S+?)\s*[$＄]?\s*([\d,]+)\s*元?$/);
+  if (mp) {
+    try {
+      const p = await manualPurchase({ supplier: mp[1], total: mp[2].replace(/,/g, '') }, '老闆 LINE');
+      return { type: 'text', text: `🧾 已登記進貨單：${p.supplier} ${money(p.total)}（${mdOf(p.date)}）\n這是要付的帳；付錢的時候打「${p.supplier} ${p.total}」記付款。\n打「${p.supplier}要付多少」可以看這個月的帳。` };
+    } catch (err) { if (err.status) return { type: 'text', text: err.message }; throw err; }
+  }
   // 圖文選單「記帳」：先選分類
   if (said === '記帳') {
     const cats = await ex.getCats();
@@ -330,6 +342,25 @@ async function expenseChat({ said, pb, action, store, uid, pick }) {
     r.text += it ? `\n\n🛒 ${label(e.buy.date)} ${it.name}：要 ${qtyText(it.need, it.unit)}，已買 ${qtyText(it.bought, it.unit)}${it.left ? `，還要 ${qtyText(it.left, it.unit)}` : '，✅ 買齊了'}` : `\n\n🛒 ${label(e.buy.date)} 沒有店家叫${e.buy.name}，已記成多買 ${qtyText(e.buy.qty, e.buy.unit)}`;
   }
   return r;
+}
+
+// 應付帳款：這個月（或上個月）每家廠商進了多少、付了多少、還要付多少
+async function payText(when, name) {
+  const month = (when === '上個月' ? addDays(today().slice(0, 7) + '-01', -1) : today()).slice(0, 7);
+  const L = await supplierLedger(month), mm = +month.slice(5, 7);
+  const who = String(name || '').replace(/^(付|給)/, '').trim();
+  if (who) {
+    const r = L.find((x) => x.supplier.includes(who) || who.includes(x.supplier));
+    if (!r) return { type: 'text', text: `${mm} 月沒有「${who}」的進貨單或付款紀錄。拍上游的出貨單傳過來，或打「進貨單 ${who} 金額」登記。` };
+    return { type: 'text', text: [`🏭 ${r.supplier} ${mm} 月`, `進貨 ${r.invoices.length} 張 ${money(r.total)}`, `已付 ${money(r.paid)}`, r.left > 0 ? `👉 還要付 ${money(r.left)}` : r.left < 0 ? `多付了 ${money(-r.left)}` : '✅ 付清了',
+      ...(r.over ? [`（其中上游多算 ${money(r.over)}，付錢前先確認）`] : []),
+      ...(r.items.length ? ['', '買了什麼：', ...r.items.slice(0, 15).map((x) => `・${x.name} ${+x.qty.toFixed(2)}${x.unit} ${money(x.amount)}`), ...(r.items.length > 15 ? [`…還有 ${r.items.length - 15} 樣，到後台「進貨單 → 廠商總帳」看`] : [])] : []),
+      '', '進貨單：', ...r.invoices.slice(-10).map((x) => `・${mdOf(x.date)} ${money(x.total)}${x.lines.length ? `（${x.lines.length} 項）` : ''}`),
+      ...(r.payments.length ? ['', '付款：', ...r.payments.slice(-10).map((x) => `・${mdOf(x.date)} ${money(x.amount)}`)] : [])].join('\n') };
+  }
+  const owe = L.filter((r) => r.left > 0);
+  if (!L.length) return { type: 'text', text: `${mm} 月還沒有進貨單。拍上游的出貨單傳過來，或打「進貨單 廠商 金額」登記。` };
+  return { type: 'text', text: [`🏭 ${mm} 月應付帳款`, `進貨 ${money(L.reduce((a, r) => a + r.total, 0))}・已付 ${money(L.reduce((a, r) => a + r.paid, 0))}`, '', ...(owe.length ? owe.map((r) => `・${r.supplier} 還要付 ${money(r.left)}`) : ['✅ 都付清了']), '', '打「聯興要付多少」看一家的明細。'].join('\n') };
 }
 
 // 「還要買」：現在採買的配送日，還沒買齊的品項

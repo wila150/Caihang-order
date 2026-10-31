@@ -662,6 +662,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
     <div class="datebar"><button data-pmonth="-1" aria-label="上個月">‹</button><input type="month" id="pmonth" aria-label="進貨單月份"><button data-pmonth="1" aria-label="下個月">›</button>
       <button class="pbtn" id="puBtn">上傳進貨單照片</button><input type="file" id="puFile" accept="image/*" multiple hidden></div>
     <p class="sub">上游廠商給的出貨單拍起來：老闆在 LINE（老闆選單）直接傳照片，或在這裡上傳。AI 讀出每一行，系統自己用「數量×單價」重算，抓上游多算、少算，也跟平常進價、那天要叫的量比。</p>
+    <div class="payseg" role="group" aria-label="看什麼" style="margin:6px 0 10px"><button data-puview="list" aria-pressed="true">每張進貨單</button><button data-puview="ledger" aria-pressed="false">廠商總帳（要付多少）</button></div>
     <div id="puBox"><div class="empty">載入中…</div></div>
   </section>
 
@@ -1161,10 +1162,35 @@ async function importErpStores(file){
   }catch(e){toast(e.message)}
 }
 /* ---------- 進貨單（上游的出貨單拍照核對）---------- */
-let PU=null,pmonth='',openPu='',puImg={},puEdit={};
+let PU=null,pmonth='',openPu='',puImg={},puEdit={},puView='list',LG=null,openLg='';
 async function loadPurchases(){
   const m=pmonth||D.month;$('pmonth').value=m;
-  try{PU=await api('GET',null,'?purchases='+m);renderPurchases()}catch(e){$('puBox').innerHTML=`<div class="empty">${esc(e.message)}</div>`}
+  document.querySelectorAll('[data-puview]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.puview===puView));
+  try{
+    if(puView==='ledger'){LG=await api('GET',null,'?ledger='+m);renderLedger()}
+    else{PU=await api('GET',null,'?purchases='+m);renderPurchases()}
+  }catch(e){$('puBox').innerHTML=`<div class="empty">${esc(e.message)}</div>`}
+}
+// 廠商總帳：每家這個月應付（進貨單合計）、已付（記帳的進貨付款）、未付
+function renderLedger(){
+  const L=LG.ledger,[,m]=LG.month.split('-');
+  const all=L.reduce((a,r)=>a+r.total,0),paid=L.reduce((a,r)=>a+r.paid,0),left=L.reduce((a,r)=>a+Math.max(0,r.left),0);
+  const sups=[...new Set([...L.map(r=>r.supplier),...D.products.map(p=>p.supplier).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+  $('puBox').innerHTML=`<div class="billsum" style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 2px 8px"><span>${+m} 月應付 <b>${n0p(all)}</b></span><span class="paid">已付 ${n0p(paid)}</span><span class="${left?'unpaid':'paid'}">未付 ${n0p(left)}</span></div>
+    <datalist id="supList">${sups.map(x=>`<option value="${esc(x)}"></option>`).join('')}</datalist>
+    <details class="bill" style="padding:10px 14px"><summary>＋ 手動登記進貨（沒有拍照的單）</summary>
+      <div class="pedrow" style="margin-top:8px"><label>廠商<input id="mpSup" list="supList"></label><label>日期<input id="mpDate" type="date" value="${D.today}"></label><label>金額<input id="mpAmt" inputmode="decimal"></label><label>備註<input id="mpNote"></label></div>
+      <button class="ok" data-mpadd="1">登記</button></details>
+    ${L.map(r=>{const open=openLg===r.supplier;return `<div class="bill"><button class="bill-h" data-lg="${esc(r.supplier)}" aria-expanded="${open}"><span><b>${esc(r.supplier)}</b><small>進貨 ${r.invoices.length} 張 ${n0p(r.total)}・已付 ${n0p(r.paid)}${r.over?`・<span class="unpaid">上游多算 ${n0p(r.over)}</span>`:''}${r.under?`・上游少算 ${n0p(r.under)}`:''}</small></span><span class="amt">${r.left>0?`<span class="unpaid">未付 ${n0p(r.left)}</span>`:r.left<0?`多付 ${n0p(-r.left)}`:'<span class="paid">付清</span>'}</span></button>
+      ${open?`<div class="pu-d">
+        ${r.items.length?`<h4 style="margin:6px 0">這個月買了什麼（品項合計）</h4><div class="scroll"><table><thead><tr><th>品名</th><th class="n">數量</th><th class="n">平均單價</th><th class="n">金額</th></tr></thead><tbody>
+          ${r.items.map(x=>`<tr><td>${esc(x.name)}${x.times>1?` <small>（${x.times} 次）</small>`:''}</td><td class="n">${+x.qty.toFixed(2)} ${esc(x.unit)}</td><td class="n">${x.qty?+(x.amount/x.qty).toFixed(1):''}</td><td class="n">${n0p(x.amount)}</td></tr>`).join('')}
+          </tbody></table></div>`:''}
+        <h4 style="margin:10px 0 6px">每張進貨單和付款</h4><div class="scroll"><table><thead><tr><th>日期</th><th>內容</th><th class="n">數量</th><th class="n">單價</th><th class="n">進貨</th><th class="n">付款</th></tr></thead><tbody>
+        ${[...r.invoices.map(x=>({d:x.date,inv:x})),...r.payments.map(x=>({d:x.date,pay:x}))].sort((a,b)=>a.d.localeCompare(b.d)).map(x=>x.inv?`<tr><td><b>${md(x.d)}</b></td><td><b>進貨單${x.inv.manual?'（手動）':''}</b>${Math.abs(x.inv.diff)>1?` <span class="pu-tag bad">上游${x.inv.diff>0?'多算':'少算'} ${n0p(Math.abs(x.inv.diff))}</span>`:''}${x.inv.note?` <small>${esc(x.inv.note)}</small>`:''}</td><td></td><td></td><td class="n"><b>${n0p(x.inv.total)}</b></td><td></td></tr>`+x.inv.lines.map(l=>`<tr><td></td><td style="padding-left:1.2em">${esc(l.name)}</td><td class="n">${l.qty??''} ${esc(l.unit||'')}</td><td class="n">${l.price??''}</td><td class="n">${n0p(l.amount)}</td><td></td></tr>`).join(''):`<tr><td><b>${md(x.d)}</b></td><td>💰 ${esc(x.pay.item)}${x.pay.note?'・'+esc(x.pay.note):''}</td><td></td><td></td><td></td><td class="n"><b>${n0p(x.pay.amount)}</b></td></tr>`).join('')}
+        </tbody><tfoot><tr><td colspan="4">合計（還要付 ${n0p(Math.max(0,r.left))}）</td><td class="n">${n0p(r.total)}</td><td class="n">${n0p(r.paid)}</td></tr></tfoot></table></div>
+        <div class="pedrow"><label>付款日期<input type="date" id="spDate" value="${D.today}"></label><label>這次付<input id="spAmt" inputmode="decimal" value="${r.left>0?r.left:''}"></label><label>備註<input id="spNote" placeholder="例如 現金、匯款"></label></div>
+        <div class="acts"><button class="ok" data-sppay="${esc(r.supplier)}">記付款</button></div></div>`:''}</div>`}).join('')||'<div class="empty">這個月還沒有進貨單，也沒有記付款給廠商。</div>'}`;
 }
 const n0p=n=>n==null?'':Math.round(n).toLocaleString('en-US');
 const puVerdict=p=>Math.abs(p.diff)<=1?(p.issues.some(x=>x.type==='read')?['warn','有看不清楚的']:['ok','金額對得上']):['bad',p.diff>0?`多算 ${n0p(p.diff)}`:`少算 ${n0p(-p.diff)}`];
@@ -2305,6 +2331,12 @@ document.addEventListener('click',async e=>{
   if(b.dataset.cmenu!=null){const ci=+b.dataset.cmenu;openCat=openCat===ci?-1:ci;renderProducts();return}
   if(b.dataset.addp!=null){addProduct(+b.dataset.addp);return}
   if(b.dataset.pu){puOpen(b.dataset.pu);return}
+  if(b.dataset.puview){puView=b.dataset.puview;openPu='';openLg='';loadPurchases();return}
+  if(b.dataset.lg){openLg=openLg===b.dataset.lg?'':b.dataset.lg;renderLedger();return}
+  if(b.dataset.sppay){const s=b.dataset.sppay,amt=+$('spAmt').value.replace(/,/g,'');if(!(amt>0)){toast('請填這次付多少');$('spAmt').focus();return}
+    if(!confirm(`記付款：付給「${s}」${n0p(amt)} 元？\n（會記成進貨付款支出）`))return;
+    try{await api('POST',{action:'supplierPay',supplier:s,amount:amt,date:$('spDate').value,note:$('spNote').value});toast('已記付款');loadPurchases()}catch(e){toast(e.message)}return}
+  if(b.dataset.mpadd){try{await api('POST',{action:'purchaseManual',supplier:$('mpSup').value,date:$('mpDate').value,total:$('mpAmt').value,note:$('mpNote').value});toast('已登記進貨');loadPurchases()}catch(e){toast(e.message)}return}
   if(b.dataset.pmonth){pmonth=addMonths(pmonth||D.month,+b.dataset.pmonth);openPu='';loadPurchases();return}
   if(b.dataset.puaddline){const id=b.dataset.puaddline,p=PU.purchases.find(x=>x.id===id);const L=puEdit[id]||=structuredClone({supplier:p.supplier,date:p.date,total:p.total,lines:p.lines});L.lines.push({name:'',qty:null,unit:'',price:null,amount:null});renderPurchases();return}
   if(b.dataset.pusave){puSave(b.dataset.pusave);return}

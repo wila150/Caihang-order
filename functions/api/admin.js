@@ -96,6 +96,11 @@ export async function GET(request) {
       const m = isMonth(q.get('purchases')) ? q.get('purchases') : thisMonth();
       return json({ month: m, purchases: await purchase.listPurchases(m) });
     }
+    if (q.get('ledger')) {
+      need(me, 'prices');
+      const m = isMonth(q.get('ledger')) ? q.get('ledger') : thisMonth();
+      return json({ month: m, ledger: await purchase.supplierLedger(m) });
+    }
     if (q.get('purchaseImg')) {
       need(me, 'prices');
       return json({ thumb: await purchase.purchaseThumb(q.get('purchaseImg')) });
@@ -251,6 +256,13 @@ export async function POST(request) {
       case 'purchaseExpense':
         need(me, 'prices');
         return json(await purchase.setPurchaseExpense(b.id, !!b.on));
+      case 'supplierPay':
+        need(me, 'prices');
+        await purchase.paySupplier(b, me.name);
+        return json({ ok: true });
+      case 'purchaseManual':
+        need(me, 'prices');
+        return json({ purchase: await purchase.manualPurchase(b, me.name) });
       case 'purchaseRemove':
         need(me, 'prices');
         await purchase.removePurchase(b.id);

@@ -161,8 +161,19 @@ async function syncCost(date, pid) {
   return { avg, times: L.length };
 }
 
+// 品名裡有認得的廠商（品項上記的 ERP 供應商名稱）就當成付給這家、算進貨付款：「聯興 12000」不用打 @
+export async function supplierIn(text) {
+  const t = String(text || '').replace(/[\s　]/g, '');
+  const sups = [...new Set((await getProducts()).map((p) => p.supplier).filter((s) => s && s.length >= 2 && s !== '其他'))].sort((a, b) => b.length - a.length);
+  return sups.find((s) => t.includes(s)) || '';
+}
+
 export async function addExpense(input, { by = '', source = 'admin' } = {}) {
   const cats = await getCats();
+  if (!input.payee) {
+    const s = await supplierIn(`${input.item || ''} ${input.note || ''}`);
+    if (s) input = { ...input, payee: s, cat: input.cat || PURCHASE };
+  }
   const e = { id: rid(), ...normalize(input, cats), by: clean(by, 40), source, at: new Date().toISOString() };
   // 今天記的進貨：算進現在正在採買的那個配送日
   if (isPurchase(e.cat, cats) && e.date === today()) {
