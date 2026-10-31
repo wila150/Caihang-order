@@ -464,6 +464,7 @@ h2{font-size:1.05rem;font-weight:700;margin:0 0 10px}
 .quickadd button{border:0;background:var(--leaf);color:#fff;border-radius:10px;padding:0 16px;font-weight:700}
 .psearch{width:100%;margin-bottom:6px}
 .serp{grid-column:1/-1;font-size:.8rem;color:var(--muted)}
+.perp{font-size:.8rem;color:var(--muted);margin:6px 0}
 .acat{margin:18px 2px 6px;font-weight:700;font-size:.85rem;color:var(--muted)}
 .acat small{font-size:.8rem}
 .plist{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
@@ -886,7 +887,9 @@ const hasSup=()=>D.products.some(p=>p.supplier);
 const bySup=()=>hasSup()&&localStorage.getItem('buyBy')==='sup';
 const grpOf=(pid,pm)=>bySup()?(pm[pid]?.supplier||'其他廠商'):(pm[pid]?.cat||'其他');
 // 依廠商時同一家排在一起（筆畫順），廠商裡面照原本的分類順序
-const grouped=(T,pm)=>bySup()?[...T].sort((a,b)=>(pm[a.pid]?.supplier?0:1)-(pm[b.pid]?.supplier?0:1)||grpOf(a.pid,pm).localeCompare(grpOf(b.pid,pm),'zh-Hant-TW-u-co-stroke')):T;
+// 廠商照 ERP 廠商代碼排（F01、F02…），沒有代碼的照筆畫，沒有廠商的放最後
+const supKey=(pid,pm)=>pm[pid]?.supplier?(pm[pid].supplierCode||'~')+pm[pid].supplier:'\uffff';
+const grouped=(T,pm)=>bySup()?[...T].sort((a,b)=>supKey(a.pid,pm).localeCompare(supKey(b.pid,pm),'zh-Hant-TW-u-co-stroke')):T;
 const boughtOf=pid=>+(D.bought?.[pid]||0);
 function renderBoard(){
   const T=totals(),sm=SM(),pm=PM();
@@ -1008,12 +1011,12 @@ async function readErp(file,cols){
 // 匯入 ERP 產品：先試算給老闆確認再寫入（用產品代號比對，可以重複匯入）
 async function importErp(file){
   if(pDirty){toast('請先按「儲存品項」');return}
-  const rows=await readErp(file,{code:'產品代號',name:'產品名稱',catCode:'類別代碼',cat:'類別名稱',unit:'大單位',small:'小單位',price:'建議售價',supplier:'供應商名稱'});
+  const rows=await readErp(file,{code:'產品代號',name:'產品名稱',catCode:'類別代碼',cat:'類別名稱',unit:'大單位',small:'小單位',step:'進位',price:'建議售價',cost:'進貨單位',supplierCode:'供應商代碼',supplier:'供應商名稱'});
   if(!rows)return;
   try{
     const s=await api('POST',{action:'importErp',rows});
-    let msg=`ERP 檔有 ${rows.length} 項產品：\n・新增 ${s.add} 項（直接上架）\n・更新 ${s.update} 項\n・接上原本的品項 ${s.link} 項（單價、叫法都保留）\n分類會改成 ERP 的 ${s.catCount} 類。`;
-    if(s.skipped.length)msg+=`\n\n單位看不懂、跳過 ${s.skipped.length} 項（${s.skipped.slice(0,5).join('、')}），要的話再自己新增。`;
+    let msg=`ERP 檔有 ${rows.length} 項產品：\n・新增 ${s.add} 項\n・更新 ${s.update} 項\n・接上原本的品項 ${s.link} 項（單價、叫法都保留）\n分類會改成 ERP 的 ${s.catCount} 類。`;
+    if(s.skipped.length)msg+=`\n\n有 ${s.skipped.length} 項先下架（POS 特殊行或單位看不懂，單位先用「包」）：${s.skipped.slice(0,5).join('、')}`;
     if(!confirm(msg+'\n\n確定匯入？'))return;
     const removeOthers=s.others.length>0&&confirm(`另外有 ${s.others.length} 個品項不在 ERP 檔裡：\n${s.others.slice(0,10).join('、')}${s.others.length>10?'…':''}\n\n按「確定」刪掉這些，按「取消」保留。舊訂單紀錄不受影響。`);
     toast('匯入中…');
@@ -1188,6 +1191,7 @@ function renderProducts(){
         ${p.unit==='斤'&&D.rules?.liang!==false?`<label class="chkl"><input type="checkbox" data-pf="liang" data-i="${i}" ${p.liang!==false?'checked':''}> 可以叫到兩（關掉就只能叫整數斤）</label>`:''}</div>
         <div class="alias"><span class="lb">客人常打的寫法</span>${aliasArr(p).map((a,k)=>`<span>${esc(a)}<button data-adel="${i}" data-k="${k}" aria-label="刪除叫法 ${esc(a)}">✕</button></span>`).join('')}${storeAliasChips(p)}
           <span class="anew"><select data-ascope="${i}" aria-label="適用的店家"><option value="">全部店家</option>${D.stores.map(s=>`<option value="${s.id}" ${aScope[i]===s.id?'selected':''}>只有${esc(s.name)}</option>`).join('')}</select><input data-anew="${i}" placeholder="打字按 Enter" maxlength="20" aria-label="${esc(p.name)} 新增叫法"></span></div>
+        ${p.code?`<div class="perp">ERP ${esc(p.code)}${p.supplier?`・廠商 ${esc(p.supplier)}${p.supplierCode?`（${esc(p.supplierCode)}）`:''}`:''}${p.small&&p.step?`・1${esc(p.unit)}＝${p.step}${esc(p.small)}`:''}${may("prices")&&p.listPrice?`・建議售價 ${p.listPrice}`:''}${may('prices')&&p.cost?`・進價 ${p.cost}`:''}</div>`:''}
         <button class="pdel" data-pdel="${i}">刪除這個品項</button>
       </div>`:''}</div>`}).join('')+foot+'</div>';
   }).join('')||'<div class="empty">找不到</div>';
@@ -1702,8 +1706,8 @@ function twoCol(arr,cell,k,head){
 const blk=(t,sm)=>`<div class="blk">${t.rows.slice().sort(byRoute(sm)).map((r,i)=>`<div><span>${i?'':esc(t.name)}</span><span class="n">${esc(qtyText(r.qty,t.unit))}</span><span>${esc(sm[r.sid]?.name||'')}</span><span class="n">${sm[r.sid]?.route??''}</span></div>`).join('')}</div>`;
 const supOf=(pid,pm)=>pm[pid]?.supplier||'其他廠商';
 function bySupplier(T,pm){
-  const g={};T.forEach(t=>(g[supOf(t.pid,pm)]??=[]).push(t));
-  return Object.entries(g).sort(([a],[b])=>(a==='其他廠商')-(b==='其他廠商')||stroke(a,b));
+  const g={},key={};T.forEach(t=>{(g[supOf(t.pid,pm)]??=[]).push(t);key[supOf(t.pid,pm)]=supKey(t.pid,pm)});
+  return Object.entries(g).sort(([a],[b])=>stroke(key[a],key[b]));
 }
 // 叫貨單：每家廠商一頁，照這張去跟廠商叫貨
 function docSupOrder(){

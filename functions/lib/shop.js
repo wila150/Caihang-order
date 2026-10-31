@@ -208,6 +208,9 @@ export async function saveProducts(input) {
       liang: (p.liang === undefined ? old.get(id)?.liang : p.liang) !== false, // 斤的品項可不可以叫到兩
       code: clean(p.code === undefined ? old.get(id)?.code : p.code, 20), // ERP 產品代號（匯入 ERP 時帶進來，之後匯出給 ERP 用）
       supplier: clean(p.supplier === undefined ? old.get(id)?.supplier : p.supplier, 20), // 跟哪家廠商進（採買總表依廠商分組）
+      // ERP 帶進來的：廠商代碼（廠商照這個排）、小單位和進位（斤／兩／16、公斤／公克／1000）、建議售價；畫面沒送就保留
+      ...Object.fromEntries(['supplierCode', 'small'].map((k) => [k, clean(p[k] === undefined ? old.get(id)?.[k] : p[k], 10)])),
+      ...Object.fromEntries(['step', 'listPrice'].map((k) => [k, Math.max(0, +(p[k] === undefined ? old.get(id)?.[k] : p[k]) || 0)])),
     };
   });
   for (const p of list) {
@@ -221,32 +224,43 @@ export async function saveProducts(input) {
 }
 
 /* ---------- 匯入 ERP 產品（後台品項頁上傳 ERP 匯出的「產品資料」Excel）---------- */
-// rows：[{ code, name, cat, catCode, unit, small, price, supplier }]，畫面讀完 Excel 送來
+// rows：[{ code, name, cat, catCode, unit, small, step, price, cost, supplier, supplierCode }]，畫面讀完 Excel 送來
+// price＝建議售價、cost＝進貨單位那欄（ERP 那欄其實是進價）、step＝進位（1 大單位＝幾個小單位）
 // 用 ERP 代號比對：有的就照 ERP 更新品名、分類、單位；還沒代號的舊品項同名同單位就接上代號（單價、叫法、訂單紀錄都留著）；其他新增並上架
 // 分類換成 ERP 的（照類別編號排）。dry＝只算結果給畫面確認；removeOthers＝不在 ERP 檔裡的品項一起刪掉
 const ERP_UNIT = { 台斤: '斤', F公: '公斤' };
-const ERP_SKIP = new Set(['備註', '總金額']); // POS 的特殊行，不是產品
+const ERP_OFF = new Set(['備註', '總金額']); // POS 的特殊行，不是給店家叫的：一樣匯進來（ERP 有的都要有），但先下架
 export async function importErp(input, { dry = true, removeOthers = false } = {}) {
   if (!Array.isArray(input) || !input.length) throw new UserError('Excel 裡沒有讀到產品，請確認是 ERP 匯出的產品資料');
   if (input.length > 5000) throw new UserError('產品太多了（最多 5000 項）');
-  const skipped = [], rows = [], seen = new Set();
+  const skipped = [], rows = [], seen = new Set(); // skipped：匯進來但先下架的
   for (const r of input) {
     const code = clean(r.code, 20), name = clean(r.name, 40), cat = clean(r.cat, 12);
-    const unit = ERP_UNIT[clean(r.unit, 6)] || clean(r.unit, 6);
+    let unit = ERP_UNIT[clean(r.unit, 6)] || clean(r.unit, 6);
     if (!code || !name || seen.has(code)) continue;
-    // 單位是亂碼（0、_41+）的跳過，列給老闆自己補
-    if (ERP_SKIP.has(name) || !cat || !/^[一-鿿]{1,3}$/.test(unit)) { if (!ERP_SKIP.has(name)) skipped.push(name); continue; }
     seen.add(code);
-    rows.push({ code, name, cat, catCode: clean(r.catCode, 10), unit, supplier: clean(r.supplier, 20), liang: unit !== '斤' || clean(r.small, 4) === '兩', price: Math.max(0, Math.round(+r.price || 0)) });
+    // 單位是亂碼（0、_41+）的先用「包」、下架，列給老闆自己改
+    const off = ERP_OFF.has(name) || !/^[一-鿿]{1,3}$/.test(unit);
+    if (!/^[一-鿿]{1,3}$/.test(unit)) unit = '包';
+    if (off) skipped.push(`${name}（${code}）`);
+    const num = (v) => (Number.isFinite(+v) && +v > 0 ? +v : 0);
+    rows.push({
+      code, name, cat: cat || '其它', catCode: clean(r.catCode, 10), unit, off, liang: unit !== '斤' || clean(r.small, 4) === '兩',
+      supplier: clean(r.supplier, 20), supplierCode: clean(r.supplierCode, 10),
+      small: clean(r.small, 10).replace(/[^\u4e00-\u9fff]/g, ''), step: num(r.step), listPrice: num(r.price), cost: num(r.cost),
+    });
   }
   if (!rows.length) throw new UserError('Excel 裡沒有讀到產品，請確認是 ERP 匯出的產品資料');
-  // ERP 同名的（白米 斤／白米 袋）加單位區分，連單位也一樣就加代號
+  // ERP 同名的（白米 斤／白米 袋）加單位區分，連單位也一樣就加代號；下架的那些撞名時只改它自己（加代號）
   const count = (list, key) => list.reduce((m, x) => m.set(key(x), (m.get(key(x)) || 0) + 1), new Map());
-  const byName = count(rows, (x) => x.name), byNameUnit = count(rows, (x) => x.name + '|' + x.unit);
-  for (const x of rows) {
+  const live = rows.filter((x) => !x.off);
+  const byName = count(live, (x) => x.name), byNameUnit = count(live, (x) => x.name + '|' + x.unit);
+  for (const x of live) {
     if (byNameUnit.get(x.name + '|' + x.unit) > 1) x.name = `${x.name}（${x.code}）`;
     else if (byName.get(x.name) > 1) x.name = `${x.name}（${x.unit}）`;
   }
+  const taken = new Set(live.map((x) => x.name));
+  for (const x of rows.filter((r) => r.off)) { if (taken.has(x.name)) x.name = `${x.name}（${x.code}）`; taken.add(x.name); }
 
   await ensureMigrated();
   const units = await getUnits();
@@ -262,11 +276,12 @@ export async function importErp(input, { dry = true, removeOthers = false } = {}
     const stamp = rid('p');
     const list = rows.map((r, i) => {
       const o = withCode.get(r.code) || noCode.get(r.name + '|' + r.unit);
-      const base = { code: r.code, name: r.name, cat: r.cat, unit: r.unit, liang: r.liang, supplier: r.supplier };
-      if (!o) { add++; return { id: stamp + i.toString(36), ...base, price: r.price, cost: null, priceDate: '', on: true, alias: [], packs: [] }; }
+      const base = { code: r.code, name: r.name, cat: r.cat, unit: r.unit, liang: r.liang, supplier: r.supplier, supplierCode: r.supplierCode, small: r.small, step: r.step, listPrice: r.listPrice };
+      // 單價、進價：還沒填過的才用 ERP 的建議售價、進價（每天在「單價」頁填的不會被蓋掉）
+      if (!o) { add++; return { id: stamp + i.toString(36), ...base, price: r.listPrice, cost: r.cost || null, priceDate: '', on: !r.off, alias: [], packs: [] }; }
       used.add(o.id);
       o.code ? update++ : link++;
-      return { ...o, ...base, packs: packList(o.packs, r.unit) };
+      return { ...o, ...base, price: o.price || r.listPrice, cost: o.cost ?? (r.cost || null), packs: packList(o.packs, r.unit) };
     });
     const others = old.filter((x) => !used.has(x.id));
     const keep = removeOthers ? [] : others;
@@ -925,7 +940,7 @@ export async function buyList(date) {
     n.need = roundQty(n.need + it.qty); n.stores++;
   }
   const rank = Object.fromEntries(products.map((p, i) => [p.id, i]));
-  const sup = Object.fromEntries(products.map((p) => [p.id, p.supplier || '']));
-  return Object.values(need).map((n) => ({ ...n, supplier: sup[n.pid] || '', bought: roundQty(bought[n.pid] || 0), left: roundQty(Math.max(0, n.need - (bought[n.pid] || 0))) }))
+  const sup = Object.fromEntries(products.map((p) => [p.id, p]));
+  return Object.values(need).map((n) => ({ ...n, supplier: sup[n.pid]?.supplier || '', supplierCode: sup[n.pid]?.supplierCode || '', bought: roundQty(bought[n.pid] || 0), left: roundQty(Math.max(0, n.need - (bought[n.pid] || 0))) }))
     .sort((a, b) => (rank[a.pid] ?? 999) - (rank[b.pid] ?? 999));
 }

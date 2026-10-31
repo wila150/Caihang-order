@@ -316,7 +316,9 @@ async function buyText() {
   const about = (x) => (pk[x.pid] ? `約 ${+(x.left / pk[x.pid].n).toFixed(1)} ${pk[x.pid].unit}` : '');
   // 品項有記廠商（匯入 ERP 產品時帶進來）就依廠商分組，照廠商去叫貨
   const bySup = left.some((x) => x.supplier);
-  if (bySup) left.sort((a, b) => (a.supplier || '\uffff').localeCompare(b.supplier || '\uffff', 'zh-Hant'));
+  // 廠商照 ERP 廠商代碼排（F01、F02…），沒有代碼的照名稱，沒有廠商的放最後
+  const supKey = (x) => (x.supplier ? (x.supplierCode || '~') + x.supplier : '\uffff');
+  if (bySup) left.sort((a, b) => supKey(a).localeCompare(supKey(b), 'zh-Hant'));
   let last = null;
   const head = (x) => { if (!bySup || x.supplier === last) return ''; last = x.supplier; return `【${x.supplier || '其他'}】\n`; };
   const lines = left.map((x) => `${head(x)}・${x.name} ${qtyText(x.left, x.unit)}${about(x) ? `（${about(x)}）` : ''}${x.bought ? `\n　要 ${qtyText(x.need, x.unit)}，已買 ${qtyText(x.bought, x.unit)}` : ''}`);

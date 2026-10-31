@@ -44,9 +44,9 @@ async function pushToStore(store, messages) {
   return ok;
 }
 
-// 理貨、司機看不到單價：單價（price）、基本價（base）、進價（cost）都拿掉
+// 理貨、司機看不到單價：單價（price）、基本價（base）、進價（cost）、建議售價（listPrice）都拿掉
 const noPriceItem = ({ price, base, ...i }) => i;
-const noPriceProduct = ({ price, cost, ...p }) => p;
+const noPriceProduct = ({ price, cost, listPrice, ...p }) => p;
 
 export async function GET(request) {
   try {
