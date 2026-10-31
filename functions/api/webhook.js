@@ -419,9 +419,8 @@ async function payLine(text) {
   if (!PAY_RE.test(text)) return null;
   const p = ex.parseExpenseText(text.replace(PAY_RE, ''));
   if (!p) return null;
-  const all = `${p.item}${p.payee}${p.note}`.replace(/[\s　]/g, '');
-  const s = (await ex.getCats()).filter((c) => c.supplier).map((c) => c.name).sort((a, b) => b.length - a.length).find((x) => all.includes(x));
-  return s ? { supplier: s, amount: p.amount, date: p.date, note: p.note.replace(s, '').trim() } : null;
+  const hit = ex.findSupplier(`${p.item}${p.payee}${p.note}`, ex.supplierKeys((await ex.getCats()).filter((c) => c.supplier).map((c) => c.name)));
+  return hit ? { supplier: hit[1], amount: p.amount, date: p.date, note: p.note.replace(hit[0], '').trim() } : null;
 }
 
 // 記帳按鈕：這兩個月記最多次的分類（廠商）排前面，再來是其他支出分類

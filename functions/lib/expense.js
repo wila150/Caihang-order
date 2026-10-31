@@ -45,9 +45,10 @@ export async function getCats() {
   const sups = supplierList(products);
   const bySup = sups.length > 0;
   // 品名自動分到它的廠商（打「高麗菜 1500」就是付給西螺市場）
+  const short = supplierKeys(sups).filter(([k, s]) => k !== s);
   const supCats = sups.map((name) => ({
     name, purchase: true, product: true, supplier: true,
-    words: [...new Set([...products.filter((p) => p.supplier === name).flatMap((p) => [p.name, ...aliases(p)]), ...(learned[name] || [])])],
+    words: [...new Set([...short.filter(([, s]) => s === name).map(([k]) => k), ...products.filter((p) => p.supplier === name).flatMap((p) => [p.name, ...aliases(p)]), ...(learned[name] || [])])],
   }));
   const prod = cats.filter((name) => !sups.includes(name)).map((name) => ({
     name, purchase: true, product: true, ...(bySup ? { hidden: true } : {}),
@@ -178,14 +179,35 @@ async function syncCost(date, pid) {
 }
 
 // 品名裡有認得的廠商（品項上記的 ERP 供應商名稱）就當成付給這家、算進貨付款：「聯興 12000」不用打 @
-const supplierNames = async () => [...new Set((await getProducts()).map((p) => p.supplier).filter((s) => s && s.length >= 2 && s !== '其他'))].sort((a, b) => b.length - a.length);
-// 「進貨 聯興」「付給七美」「進貨 500 七美」：廠商拿出來當付給誰，品名、備註拿掉廠商名稱（同樣是進貨，寫法統一）
-function tidy(e, sups) {
+// 也認簡稱：去掉字尾（西螺市場→西螺）、前兩個字（秋福豬肉→秋福），跟別家撞到或太短的不用
+const SUFFIX = /(市場|商行|行|公司|食品|企業社|農產|商店)$/;
+export function supplierKeys(names) {
+  const list = [...new Set(names.filter((s) => s && s.length >= 2 && s !== '其他'))];
+  const keys = list.map((s) => [s, s]);
+  const short = [];
+  for (const s of list) {
+    const mine = new Set();
+    const a = s.replace(SUFFIX, '');
+    if (a !== s && a.length >= 2) mine.add(a);
+    if (s.length > 2) mine.add(s.slice(0, 2));
+    for (const k of mine) short.push([k, s]); // 同一家算一次（西螺市場：去字尾、前兩字都是「西螺」）
+  }
+  // 同一個簡稱對到兩家、或剛好是另一家的全名：不用
+  const count = short.reduce((m, [k]) => m.set(k, (m.get(k) || 0) + 1), new Map());
+  for (const [k, s] of short) if (count.get(k) === 1 && !list.includes(k) && !keys.some(([x, y]) => x === k && y !== s)) keys.push([k, s]);
+  return [...new Map(keys).entries()].sort((a, b) => b[0].length - a[0].length);
+}
+const supplierNames = async () => supplierKeys((await getProducts()).map((p) => p.supplier));
+// 字裡有哪家廠商：回傳 [打的字, 完整名稱]
+export const findSupplier = (text, keys) => { const t = String(text || '').replace(/[\s　]/g, ''); return keys.find(([k]) => t.includes(k)) || null; };
+// 「進貨 聯興」「付給七美」「西螺進貨」：廠商拿出來當付給誰（完整名稱），品名、備註拿掉廠商名稱（同樣是進貨，寫法統一）
+function tidy(e, keys) {
   if (e.payee) return e;
-  const s = sups.find((x) => `${e.item || ''}${e.note || ''}`.replace(/[\s　]/g, '').includes(x));
-  if (!s) return e;
-  const strip = (t) => String(t || '').replace(s, ' ').replace(/(付給|給|付)\s*$/, '').replace(/^\s*(付給|給)\s*/, '').replace(/\s+/g, ' ').trim();
-  return { ...e, payee: s, item: strip(e.item) || '進貨', note: strip(e.note), cat: !e.cat || e.cat === PURCHASE ? s : e.cat };
+  const hit = findSupplier(`${e.item || ''}${e.note || ''}`, keys);
+  if (!hit) return e;
+  const [k, s] = hit;
+  const strip = (t) => String(t || '').replace(k, ' ').replace(/(付給|給|付)\s*$/, '').replace(/^\s*(付給|給)\s*/, '').replace(/\s+/g, ' ').trim();
+  return { ...e, payee: s, item: strip(e.item) || '進貨', note: strip(e.note), cat: !e.cat || e.cat === PURCHASE || e.cat === OTHER ? s : e.cat };
 }
 
 export async function addExpense(input, { by = '', source = 'admin' } = {}) {

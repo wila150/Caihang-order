@@ -8,7 +8,7 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { askJson, baseName } from './ai.js';
 import { getProducts, getDayCosts, buyList } from './shop.js';
-import { addExpense, removeExpense, PURCHASE, listExpenses, getCats, isPurchase } from './expense.js';
+import { addExpense, removeExpense, PURCHASE, listExpenses, getCats, isPurchase, supplierKeys, findSupplier } from './expense.js';
 import { today, isDate, buyDate } from './dates.js';
 import { UserError } from './http.js';
 import { SHOP } from './config.js';
@@ -44,7 +44,7 @@ function matchSupplier(name, products) {
   const all = [...new Set(products.map((p) => p.supplier).filter(Boolean))];
   const n = clean(name, 20);
   if (!n) return '';
-  return all.find((s) => s === n) || all.find((s) => n.includes(s) || s.includes(n)) || n;
+  return all.find((s) => s === n) || all.find((s) => n.includes(s) || s.includes(n)) || findSupplier(n, supplierKeys(all))?.[1] || n;
 }
 
 // 品名對到品項：先找這家廠商的，品名一樣 → 去掉括號一樣 → 互相包含；單位一樣的優先
