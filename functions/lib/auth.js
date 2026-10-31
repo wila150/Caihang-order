@@ -1,8 +1,9 @@
-// 後台帳號與權限：用 Google 帳號登入（Firebase Authentication）
+// 後台帳號與權限：用 Google 帳號登入（Firebase Authentication），或用 LINE 登入（見 linelogin.js，帳號是 users/line:{userId}）
 // 老闆在 OWNER_EMAILS 指定；其他人由老闆在「帳號」分頁用 Email 授權，存在 users/{email}
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { UserError } from './http.js';
+import { verifySession, lineRole, dropRequest } from './linelogin.js';
 
 export const ROLES = {
   owner: '老闆',
@@ -26,11 +27,21 @@ const ownerEmails = () => (process.env.OWNER_EMAILS || '').split(',').map((s) =>
 // 工程師：測試期間可以用「重置測試資料」，在 ENGINEER_EMAILS 指定，其他人看不到
 const engineerEmails = () => (process.env.ENGINEER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 const userDoc = (email) => getFirestore().doc('users/' + email);
-const normEmail = (e) => String(e || '').trim().toLowerCase();
+// LINE 帳號（line:U…）的 userId 有分大小寫，不能轉小寫
+const normEmail = (e) => { e = String(e || '').trim(); return e.startsWith('line:') ? e : e.toLowerCase(); };
 
 // 驗證登入，回傳 { email, name, role }
 export async function signedIn(request) {
-  const token = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+  const auth = request.headers.get('authorization') || '';
+  // 用 LINE 登入的：角色每次重新查，解除老闆、停用員工馬上生效
+  if (auth.startsWith('Line ')) {
+    const s = verifySession(auth.slice(5));
+    if (!s) throw new UserError('登入已過期，請重新登入', 401);
+    const r = await lineRole(s.userId);
+    if (!r) throw new UserError('這個 LINE 已經沒有後台權限了，請找老闆', 403);
+    return { email: 'line:' + s.userId, name: r.name || s.name || 'LINE 使用者', role: r.role, engineer: false, line: true };
+  }
+  const token = auth.replace(/^Bearer /, '');
   if (!token) throw new UserError('請先登入', 401);
   let user;
   try { user = await getAuth().verifyIdToken(token); } catch { throw new UserError('登入已過期，請重新登入', 401); }
@@ -66,6 +77,16 @@ export async function addUser({ email, name, role }) {
   if (engineerEmails().includes(email)) throw new UserError('這個 Email 是工程師，已經有全部權限');
   if (ownerEmails().includes(email)) throw new UserError('這是老闆的 Email，已經有全部權限');
   await userDoc(email).set({ name: String(name || '').trim().slice(0, 20), role, disabled: false });
+  return listUsers();
+}
+
+// 把用 LINE 申請登入的人加成員工
+export async function addLineUser({ userId, name, role }) {
+  userId = String(userId || '');
+  if (!/^U[0-9a-f]{32}$/.test(userId)) throw new UserError('LINE 帳號不正確');
+  if (!ROLES[role] || role === 'owner' || role === 'engineer') throw new UserError('請選角色');
+  await userDoc('line:' + userId).set({ name: String(name || '').trim().slice(0, 20), role, disabled: false, line: true });
+  await dropRequest(userId);
   return listUsers();
 }
 

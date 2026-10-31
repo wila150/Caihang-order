@@ -24,7 +24,7 @@ LINE 叫貨＋後台管理系統：店家在 LINE 官方帳號叫貨（打字、
 - 程式註解、說明都用繁體中文，風格照現有的（簡短、說為什麼）
 - 改功能時一起更新 `public/manual.html` 說明書
 - 表單欄位不要用 `f.elements.item`（`item` 會撞到瀏覽器內建方法），用 `querySelector('[name=…]')`
-- 後台在 LINE 內建瀏覽器不能 Google 登入，連結要加 `openExternalBrowser=1`
+- 後台在 LINE 內建瀏覽器不能 Google 登入，連結要加 `openExternalBrowser=1`；也可以「用 LINE 登入」（`lib/linelogin.js`：LIFF access token → 自己簽的 30 天憑證，header `Authorization: Line …`；員工帳號是 users/line:{userId}）
 - LINE quickReply 最多 13 個；回覆免費，推播（push）會用額度，推播給店家的功能要先確認
 - 店家看不到任何價格（叫貨頁 API 用白名單欄位）
 

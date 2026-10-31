@@ -6,7 +6,8 @@ import { push, linkMenu } from '../lib/line.js';
 import { openDate, today, thisMonth, isDate, isMonth, cutoffLabel, getRulesNow } from '../lib/dates.js';
 import * as shop from '../lib/shop.js';
 import * as ex from '../lib/expense.js';
-import { signedIn, need, can, ROLES, listUsers, addUser, updateUser, removeUser } from '../lib/auth.js';
+import { signedIn, need, can, ROLES, listUsers, addUser, addLineUser, updateUser, removeUser } from '../lib/auth.js';
+import { lineLogin, lineRequests, dropRequest } from '../lib/linelogin.js';
 import { remindText, statementMessage, approvedText, dunningText, receiptMessage, slipMessage } from '../lib/messages.js';
 import { getFirestore } from 'firebase-admin/firestore';
 import { signSlipToken, sign } from '../lib/token.js';
@@ -51,6 +52,8 @@ const noPriceProduct = ({ price, cost, listPrice, ...p }) => p;
 
 export async function GET(request) {
   try {
+    // 登入畫面用：LINE 登入要的 LIFF ID（不用登入）
+    if (new URL(request.url).searchParams.get('lineConfig')) return json({ liffId: SHOP.liffId || '' });
     const me = await signedIn(request);
     need(me, 'view');
     const q = new URL(request.url).searchParams;
@@ -127,6 +130,7 @@ export async function GET(request) {
       // 出貨單印過的紀錄：{ 單號key: { q, p, at, by } }，畫面比對現在的內容，看是不是印過後又改了
       printed: (await getFirestore().doc('printed/' + date).get()).data()?.slips || {},
       bossLine: can(me.role, 'users') ? await listBoss() : null,
+      lineReqs: can(me.role, 'users') ? await lineRequests() : [],
       dayPrices: showPrices ? dayPrices : {},
       dayCosts: can(me.role, 'prices') ? await shop.getDayCosts(date) : {},
       bought: await shop.getBought(date),
@@ -144,8 +148,10 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const me = await signedIn(request);
     const b = await readJSON(request);
+    // 用 LINE 登入（還沒登入，不用驗證）
+    if (b.action === 'lineLogin') return json(await lineLogin(String(b.accessToken || '')));
+    const me = await signedIn(request);
     const store = async () => {
       const s = (await shop.getStores()).find((x) => x.id === b.storeId);
       if (!s) throw new UserError('找不到這家店', 404);
@@ -432,6 +438,14 @@ export async function POST(request) {
         need(me, 'users');
         if (b.email === me.email) throw new UserError('不能改自己的帳號');
         return json({ users: await updateUser(b) });
+      // 用 LINE 申請登入的人：加成員工，或忽略
+      case 'addLineUser':
+        need(me, 'users');
+        return json({ users: await addLineUser(b), lineReqs: await lineRequests() });
+      case 'dropLineReq':
+        need(me, 'users');
+        await dropRequest(String(b.userId || ''));
+        return json({ lineReqs: await lineRequests() });
       case 'removeUser':
         need(me, 'users');
         if (b.email === me.email) throw new UserError('不能刪除自己的帳號');

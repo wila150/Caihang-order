@@ -345,6 +345,7 @@ h2{font-size:1.15rem;margin:0 0 4px;font-weight:900}
 
 .login{max-width:340px;margin:80px auto;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px}
 .login input{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:9px 11px;margin:8px 0}
+.login .lbtn{margin-top:10px;background:#06C755;border-color:#06C755;color:#fff}
 .login .gbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:10px;font-weight:700}
 .login .err{color:var(--alert);font-size:.9rem;min-height:1.4em}
 
@@ -559,6 +560,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   <span class="logo" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 2.5c1.3 2.4 1.2 4.7.3 6.6C22 10.4 27.5 14.7 27.5 20.6c0 5.6-5.1 8.9-11.5 8.9S4.5 26.2 4.5 20.6c0-5.9 5.5-10.2 11.2-11.5-.9-1.9-1-4.2.3-6.6z" fill="currentColor"/><path d="M16 11.5c-2.6 2.9-3.6 6.1-3.6 9.3 0 3 1.1 5.5 3.6 7.4m0-16.7c2.6 2.9 3.6 6.1 3.6 9.3 0 3-1.1 5.5-3.6 7.4" stroke="#1F4D3A" stroke-opacity=".55" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg></span><h2>叫貨後台</h2>
   <div class="err" id="loginErr" role="alert"></div>
   <button id="loginBtn" class="gbtn" type="button"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>用 Google 登入</button>
+  <button id="lineBtn" class="gbtn lbtn" type="button"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5C6.2 2.5 1.5 6.3 1.5 11c0 4.2 3.7 7.7 8.8 8.4.3.1.8.2.9.5.1.3.1.7 0 1l-.1.9c0 .3-.2 1 .9.5s6-3.5 8.2-6.1c1.5-1.6 2.3-3.3 2.3-5.2 0-4.7-4.7-8.5-10.5-8.5z"/></svg>用 LINE 登入</button>
 </form>
 
 <div class="wrap" id="app" hidden>
@@ -795,7 +797,46 @@ async function initAuth(){
   if(!local)A.getRedirectResult(auth).catch(e=>{$('login').hidden=false;$('loginErr').textContent='登入失敗：'+e.code});
   if(local)A.connectAuthEmulator(auth,'http://127.0.0.1:9099',{disableWarnings:true});
   FB={auth,...A};
-  A.onAuthStateChanged(auth,u=>{if(u)load();else if($('loginErr').textContent==='')showLogin()});
+  // 用 LINE 登入的不看 Google 的登入狀態
+  A.onAuthStateChanged(auth,u=>{if(LS.get()||sessionStorage.getItem('lineLogin')==='1')return;if(u)load();else if($('loginErr').textContent==='')showLogin()});
+}
+/* ---------- 用 LINE 登入：LIFF 拿 access token → 伺服器發登入憑證（30 天），存在這台裝置 ---------- */
+const LS={get:()=>{try{return localStorage.getItem('lineSession')||''}catch{return ''}},set:v=>{try{v?localStorage.setItem('lineSession',v):localStorage.removeItem('lineSession')}catch{}}};
+async function liffReady(){
+  const {liffId}=await (await fetch('/api/admin?lineConfig=1')).json();
+  if(!liffId)throw new Error('還沒設定 LIFF，不能用 LINE 登入');
+  if(!window.liff)await new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://static.line-scdn.net/liff/edge/2/sdk.js';s.onload=ok;s.onerror=()=>no(new Error('LINE 元件載入失敗'));document.head.appendChild(s)});
+  await liff.init({liffId});
+}
+async function lineLogin(){
+  $('lineBtn').disabled=true;$('loginErr').textContent='';
+  try{
+    await liffReady();
+    // 還沒登入 LINE：跳去 LINE 登入，回來時再接著做（sessionStorage 記著）
+    if(!liff.isLoggedIn()){sessionStorage.setItem('lineLogin','1');liff.login({redirectUri:location.origin+'/admin'});return}
+    await finishLineLogin();
+  }catch(e){$('loginErr').textContent=e.message||'LINE 登入失敗'}
+  finally{$('lineBtn').disabled=false}
+}
+async function finishLineLogin(){
+  sessionStorage.removeItem('lineLogin');
+  const r=await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'lineLogin',accessToken:liff.getAccessToken()})});
+  const j=await r.json().catch(()=>({error:'伺服器沒有回應'}));
+  // 網址上 LINE 帶回來的參數拿掉
+  history.replaceState(null,'',location.pathname);
+  if(!r.ok){showLogin(j.error||'LINE 登入失敗');return}
+  LS.set(j.session);load();
+}
+// 從 LINE 登入跳回來
+async function resumeLineLogin(){
+  if(sessionStorage.getItem('lineLogin')!=='1')return false;
+  try{await liffReady();if(liff.isLoggedIn()){await finishLineLogin();return true}}catch(e){showLogin(e.message||'LINE 登入失敗');return true}
+  sessionStorage.removeItem('lineLogin');return false;
+}
+async function logout(){
+  if(LS.get()){LS.set('');try{window.liff?.isLoggedIn?.()&&liff.logout()}catch{}}
+  if(FB?.auth.currentUser)await FB.signOut(FB.auth);
+  showLogin();
 }
 async function login(){
   $('loginBtn').disabled=true;$('loginErr').textContent='';
@@ -810,15 +851,15 @@ async function login(){
 let D=null,tab='board',openRow=null,openBill=null,P=[],S=[],pDirty=false,sDirty=false,date='',month='';
 
 async function api(method,body,q=''){
-  const token=await FB.auth.currentUser?.getIdToken();
-  const r=await fetch('/api/admin'+q,{method,headers:{'Content-Type':'application/json',Authorization:'Bearer '+(token||'')},body:body&&JSON.stringify(body)});
+  const line=LS.get(),token=line?'':await FB?.auth.currentUser?.getIdToken();
+  const r=await fetch('/api/admin'+q,{method,headers:{'Content-Type':'application/json',Authorization:line?'Line '+line:'Bearer '+(token||'')},body:body&&JSON.stringify(body)});
   const j=await r.json().catch(()=>({error:'伺服器沒有回應'}));
   if(r.status===401||r.status===403){showLogin(j.error);throw new Error(j.error)}
   if(!r.ok)throw new Error(j.error||'失敗');
   return j;
 }
 // 沒權限時也登出，才能換另一個 Google 帳號
-function showLogin(msg){$('app').hidden=true;$('login').hidden=false;$('loginErr').textContent=msg||(/\bLine\//i.test(navigator.userAgent)?'在 LINE 裡不能用 Google 登入：請點右上角「⋯」→「用預設瀏覽器開啟」':'');if(msg&&FB?.auth.currentUser)FB.signOut(FB.auth)}
+function showLogin(msg){$('app').hidden=true;$('login').hidden=false;$('loginErr').textContent=msg||(/\bLine\//i.test(navigator.userAgent)?'在 LINE 裡請按「用 LINE 登入」（Google 登入在 LINE 裡不能用）':'');if(msg){LS.set('');if(FB?.auth.currentUser)FB.signOut(FB.auth)}}
 const may=w=>D.me.can.includes(w);
 const hasPrice=()=>may('prices')||may('bills');
 function applyPalette(p){if(!p)return;document.documentElement.dataset.palette=p;try{localStorage.setItem('palette',p)}catch{}}
@@ -1644,8 +1685,11 @@ function setHints(){
 }
 function renderUsers(){queueMicrotask(setHints);
   if(!$('uRole').options.length)$('uRole').innerHTML=Object.entries(D.roles).filter(([k])=>k!=='owner'&&k!=='engineer').map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
-  $('userList').innerHTML=D.users.map(u=>`<div class="urow ${u.disabled?'off':''}">
-    <span><b>${esc(u.name||u.email)}</b><small>${esc(u.email)}${u.disabled?'・已停用':''}${u.email===D.me.email?'・你自己':''}</small></span>
+  const roleOpts=Object.entries(D.roles).filter(([k])=>k!=='owner'&&k!=='engineer').map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+  // 用 LINE 申請登入的人：選角色加入，或忽略
+  const reqs=(D.lineReqs||[]).map(r=>`<div class="urow"><span><b>${esc(r.name||'（未知名稱）')}</b><small>用 LINE 申請登入・${esc(hm(r.at))}</small></span><select id="lr-${esc(r.userId)}" aria-label="${esc(r.name)} 的角色">${roleOpts}</select><span class="ua"><button data-lradd="${esc(r.userId)}">加入</button><button data-lrdrop="${esc(r.userId)}">忽略</button></span></div>`).join('');
+  $('userList').innerHTML=(reqs?`<h4 style="margin:6px 0">等你加入（用 LINE 申請）</h4>${reqs}<h4 style="margin:12px 0 6px">已加入</h4>`:'')+D.users.map(u=>`<div class="urow ${u.disabled?'off':''}">
+    <span><b>${esc(u.name||u.email)}</b><small>${u.email.startsWith('line:')?'LINE 登入':esc(u.email)}${u.disabled?'・已停用':''}${u.email===D.me.email?'・你自己':''}</small></span>
     ${u.fixed?`<span>${D.roles.owner}</span><span class="meta">在 OWNER_EMAILS 設定</span>`:`<select data-urole="${esc(u.email)}" aria-label="${esc(u.email)} 的角色">${Object.entries(D.roles).filter(([k])=>k!=='owner'&&k!=='engineer').map(([k,v])=>`<option value="${k}" ${k===u.role?'selected':''}>${v}</option>`).join('')}</select>
     <span class="ua"><button data-uoff="${esc(u.email)}" data-off="${u.disabled?0:1}">${u.disabled?'恢復':'停用'}</button><button data-urm="${esc(u.email)}">刪除</button></span>`}</div>`).join('')||'<div class="empty">還沒有其他帳號</div>';
 }
@@ -1922,12 +1966,13 @@ function showTab(t){
   $('datebar').hidden=!(t==='board'||t==='slips'||t==='prices');
 }
 $('loginBtn').addEventListener('click',login);
+$('lineBtn').addEventListener('click',lineLogin);
 $('addUser').addEventListener('click',()=>{
   const email=$('uEmail').value.trim(),name=$('uName').value.trim(),role=$('uRole').value;
   if(!email){toast('請填對方的 Google 帳號 Email');$('uEmail').focus();return}
   userAction({action:'addUser',email,name,role},`已加入 ${email}，請對方用這個 Google 帳號登入後台`).then(()=>{$('uEmail').value=$('uName').value=''});
 });
-$('logout').addEventListener('click',()=>{if(pDirty||sDirty){if(!confirm('有尚未儲存的修改，確定登出？'))return}FB.signOut(FB.auth)});
+$('logout').addEventListener('click',()=>{if(pDirty||sDirty){if(!confirm('有尚未儲存的修改，確定登出？'))return}logout()});
 $('date').addEventListener('change',e=>{if(e.target.value){date=e.target.value;openRow=null;load()}});
 $('rmonth').addEventListener('change',e=>{if(e.target.value){rmonth=e.target.value;loadReport()}});
 $('month').addEventListener('change',e=>{if(e.target.value){month=e.target.value;openBill=null;load()}});
@@ -2127,7 +2172,9 @@ document.addEventListener('click',async e=>{
   if(b.dataset.sdel){const i=+b.dataset.sdel;if(confirm(`刪除「${S[i].name||'新店家'}」？綁定的 LINE 帳號會一起解除。有訂單紀錄的店家不能刪，請改成取消「合作中」。`)){S.splice(i,1);sDirty=true;renderStores()}}
   if(b.dataset.approve)approve(b.dataset.approve);
   if(b.dataset.uoff){const off=b.dataset.off==='1';if(confirm(off?'停用後這個帳號就不能進後台，確定？':'恢復這個帳號？'))userAction({action:'updateUser',email:b.dataset.uoff,disabled:off},off?'已停用':'已恢復')}
-  if(b.dataset.urm){if(confirm(`刪除 ${b.dataset.urm} 的後台權限？`))userAction({action:'removeUser',email:b.dataset.urm},'已刪除')}
+  if(b.dataset.lradd){const r=D.lineReqs.find(x=>x.userId===b.dataset.lradd);try{const j=await api('POST',{action:'addLineUser',userId:r.userId,name:r.name,role:$('lr-'+r.userId).value});D.users=j.users;D.lineReqs=j.lineReqs;renderUsers();toast(`已加入，請「${r.name}」再按一次「用 LINE 登入」`)}catch(e){toast(e.message)}return}
+  if(b.dataset.lrdrop){try{const j=await api('POST',{action:'dropLineReq',userId:b.dataset.lrdrop});D.lineReqs=j.lineReqs;renderUsers()}catch(e){toast(e.message)}return}
+  if(b.dataset.urm){if(confirm(`刪除 ${D.users.find(u=>u.email===b.dataset.urm)?.name||b.dataset.urm} 的後台權限？`))userAction({action:'removeUser',email:b.dataset.urm},'已刪除')}
   if(b.dataset.reject){if(confirm('拒絕這個申請？對方之後還可以再申請。')){try{await api('POST',{action:'reject',userId:b.dataset.reject});await load()}catch(err){toast(err.message)}}}
   if(b.dataset.unbind){if(sDirty){toast('請先儲存店家的修改');return}if(confirm('解除這個 LINE 帳號的綁定？對方就不能再叫貨。')){try{await api('POST',{action:'unbind',userId:b.dataset.unbind});await load();toast('已解除')}catch(err){toast(err.message)}}}
 });
@@ -2196,7 +2243,9 @@ paintThemeBtn();
 // 說明：在後台裡打開使用說明書，直接跳到目前這一頁的說明
 $('helpBtn').addEventListener('click',()=>{$('helpFrame').src='/manual?in=1#tab-'+tab;$('helpBox').classList.add('on')});
 $('helpClose').addEventListener('click',()=>$('helpBox').classList.remove('on'));
-initAuth().catch(e=>{$('login').hidden=false;$('loginErr').textContent='登入元件載入失敗，請重新整理'});
+// 有 LINE 登入憑證就直接載；從 LINE 登入跳回來就接著做完；Google 登入照原本的
+if(LS.get())load();else resumeLineLogin();
+initAuth().catch(e=>{if(LS.get())return;$('login').hidden=false;$('loginErr').textContent='登入元件載入失敗，請重新整理'});
 </script>
 </body>
 </html>
