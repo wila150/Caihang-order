@@ -2,6 +2,7 @@
 import { SHOP } from '../lib/config.js';
 import { verifySignature, reply, displayName, notifyAdmins, loading, linkMenu } from '../lib/line.js';
 import { bossIds, bindBoss } from '../lib/boss.js';
+import { pairApprove } from '../lib/linelogin.js';
 import { getFirestore } from 'firebase-admin/firestore';
 import * as ex from '../lib/expense.js';
 import { orderLink } from '../lib/token.js';
@@ -44,6 +45,9 @@ async function handle(e, origin) {
   if (/^我的\s*id$/i.test(said)) {
     return say({ type: 'text', text: `您的 LINE userId：\n${uid}\n\n要設成老闆，請到後台「設定 → 老闆的 LINE」產生綁定碼，在這裡傳「綁定老闆 綁定碼」。` });
   }
+  // 後台登入碼：後台登入畫面顯示 6 位數，在 LINE 傳「後台登入 123456」就登入（手機主畫面的 App 用）
+  const pairCode = said.match(/^後台登入\s*(\d{6})$/)?.[1];
+  if (pairCode) return say({ type: 'text', text: (await pairApprove(uid, await displayName(uid), pairCode)).text });
   // 綁定老闆：後台產生 6 位數綁定碼，老闆在 LINE 傳「綁定老闆 123456」
   const bossCode = said.match(/^綁定老闆\s*(\d{6})$/)?.[1];
   if (bossCode) {

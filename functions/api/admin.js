@@ -7,7 +7,7 @@ import { openDate, today, thisMonth, isDate, isMonth, cutoffLabel, getRulesNow }
 import * as shop from '../lib/shop.js';
 import * as ex from '../lib/expense.js';
 import { signedIn, need, can, ROLES, listUsers, addUser, addLineUser, updateUser, removeUser } from '../lib/auth.js';
-import { lineLogin, lineRequests, dropRequest } from '../lib/linelogin.js';
+import { lineLogin, lineRequests, dropRequest, pairStart, pairCheck } from '../lib/linelogin.js';
 import { remindText, statementMessage, approvedText, dunningText, receiptMessage, slipMessage } from '../lib/messages.js';
 import { getFirestore } from 'firebase-admin/firestore';
 import { signSlipToken, sign } from '../lib/token.js';
@@ -54,7 +54,7 @@ const noPriceProduct = ({ price, cost, listPrice, ...p }) => p;
 export async function GET(request) {
   try {
     // 登入畫面用：LINE 登入要的 LIFF ID（不用登入）
-    if (new URL(request.url).searchParams.get('lineConfig')) return json({ liffId: SHOP.liffId || '' });
+    if (new URL(request.url).searchParams.get('lineConfig')) return json({ liffId: SHOP.liffId || '', basicId: SHOP.basicId || '' });
     const me = await signedIn(request);
     need(me, 'view');
     const q = new URL(request.url).searchParams;
@@ -162,6 +162,8 @@ export async function POST(request) {
     const b = await readJSON(request);
     // 用 LINE 登入（還沒登入，不用驗證）
     if (b.action === 'lineLogin') return json(await lineLogin(String(b.accessToken || '')));
+    if (b.action === 'pairStart') return json(await pairStart());
+    if (b.action === 'pairCheck') return json(await pairCheck(b.id));
     const me = await signedIn(request);
     const store = async () => {
       const s = (await shop.getStores()).find((x) => x.id === b.storeId);

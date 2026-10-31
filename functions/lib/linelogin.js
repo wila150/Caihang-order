@@ -48,9 +48,47 @@ export async function lineLogin(accessToken) {
     await ref.set({ userId, name, at: new Date().toISOString() });
     throw new UserError(`「${name}」還沒有後台權限，已經通知老闆。請老闆到「設定 → 後台帳號」加入你，再登入一次。`, 403);
   }
+  return issueSession(userId, name);
+}
+function issueSession(userId, name) {
   const exp = Math.floor(Date.now() / 1000) + DAYS * 86400;
   const payload = `${userId}.${exp}.${b64(name)}`;
   return { session: `${b64(payload)}.${mac(payload)}`, name };
+}
+
+/* ---------- 用 LINE 傳登入碼：手機主畫面的 App 跳去 LINE 登入會回不來，改成畫面顯示 6 位數，老闆在 LINE 傳「後台登入 123456」 ---------- */
+//   loginPair/{id} { code, exp, status: 'wait' | 'ok' | 'no', userId, name }
+const PAIR_MIN = 5;
+const pairRef = (id) => getFirestore().doc('loginPair/' + (String(id || '').replace(/[^\w-]/g, '').slice(0, 40) || '_'));
+export async function pairStart() {
+  const ref = getFirestore().collection('loginPair').doc();
+  const code = String(crypto.randomInt(0, 1e6)).padStart(6, '0');
+  await ref.set({ code, exp: Date.now() + PAIR_MIN * 60e3, status: 'wait' });
+  return { id: ref.id, code, minutes: PAIR_MIN };
+}
+// 畫面每隔幾秒問一次：LINE 那邊傳了碼、有權限就發登入憑證（只能拿一次）
+export async function pairCheck(id) {
+  const ref = pairRef(id), d = (await ref.get()).data();
+  if (!d || d.exp < Date.now()) return { status: 'expired' };
+  if (d.status === 'no') { await ref.delete(); return { status: 'no', error: `「${d.name}」還沒有後台權限，已經通知老闆。請老闆到「設定 → 後台帳號」加入你，再登入一次。` }; }
+  if (d.status !== 'ok') return { status: 'wait' };
+  await ref.delete();
+  return { status: 'ok', ...issueSession(d.userId, d.name) };
+}
+// LINE 傳「後台登入 123456」
+export async function pairApprove(userId, name, code) {
+  const snap = await getFirestore().collection('loginPair').where('code', '==', code).get();
+  const doc = snap.docs.find((x) => x.data().status === 'wait' && x.data().exp > Date.now());
+  if (!doc) return { ok: false, text: '登入碼不對或過期了（5 分鐘內有效），請在後台登入畫面重新按「用 LINE 登入」。' };
+  if (!(await lineRole(userId))) {
+    const req = getFirestore().doc('lineLoginReq/' + userId);
+    if (!(await req.get()).exists) await notifyAdmins(`🔑 ${name || '有人'} 想用 LINE 登入後台，到「設定 → 後台帳號」選角色加入。`).catch(() => {});
+    await req.set({ userId, name, at: new Date().toISOString() });
+    await doc.ref.set({ status: 'no', name }, { merge: true });
+    return { ok: false, text: '您還沒有後台權限，已經通知老闆。老闆加入您之後，再登入一次就好。' };
+  }
+  await doc.ref.set({ status: 'ok', userId, name }, { merge: true });
+  return { ok: true, text: '✅ 已登入後台，回到剛剛的畫面就會自動進去。\n（不是您自己要登入的話，請馬上告訴老闆）' };
 }
 
 // 驗證登入憑證，回傳 { userId, name }；角色每次重新查（解除老闆、停用員工馬上生效）

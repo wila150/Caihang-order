@@ -166,13 +166,30 @@ const PM=()=>Object.fromEntries(D.products.map(p=>[p.id,p]));
 
 // 老闆在後台選的配色
 function applyPalette(p){if(!p)return;document.documentElement.dataset.palette=p;try{localStorage.setItem('palette',p)}catch{}}
+async function toAdmin(){
+  const q=new URLSearchParams(location.search),st=q.get('liff.state')||'';
+  const fromLogin=q.get('liffClientId')||/admin/.test(st)||sessionStorage.getItem('lineLogin')==='1';
+  const homeApp=navigator.standalone||matchMedia('(display-mode: standalone)').matches;
+  if(fromLogin){
+    // 讓 LINE 的元件把登入做完（它會自己轉回後台）；沒轉的話自己轉
+    try{const c=await (await fetch('/api/admin?lineConfig=1')).json();if(c.liffId){await new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://static.line-scdn.net/liff/edge/2/sdk.js';s.onload=ok;s.onerror=no;document.head.appendChild(s)});await liff.init({liffId:c.liffId})}}catch{}
+    location.replace('/admin');return true;
+  }
+  if(homeApp){location.replace('/admin');return true}
+  return false;
+}
 async function load(){
   let r;
   try{r=await fetch('/api/shop?t='+encodeURIComponent(T)+(DRAFT?'&d='+encodeURIComponent(DRAFT):''));D=await r.json()}catch{D={error:'載入失敗，請重新整理'}}
   applyPalette(D.palette);
   applyBrand({logo:D.logo});if(D.search)$('q').placeholder=D.search;
   if(D.shopName){$('title').textContent=D.shopName}
-  if(!r?.ok){$('subtitle').textContent='';$('msg').hidden=false;$('msg').textContent=D.error;return}
+  if(!r?.ok){
+    // 沒有店家連結：用 LINE 登入後台時 LINE 會先回到這頁、或是從主畫面打開的後台 → 去後台
+    if(!T&&await toAdmin())return;
+    $('subtitle').textContent='';$('msg').hidden=false;$('msg').textContent=D.error;
+    if(!T)$('msg').insertAdjacentHTML('beforeend','<br><br><small>老闆、員工要開後台：<a href="/admin">按這裡</a></small>');
+    return}
   // 後台代客叫貨（電話叫貨）：上面標清楚是幫哪家店叫
   if(Q.get('proxy')&&D.store){const n=document.createElement('div');n.className='proxybar';n.innerHTML=`<button type="button" data-back="1">← 回後台</button><span>📞 代客叫貨：${esc(D.store.name)}</span>`;document.querySelector('.app').prepend(n)}
   if(D.join){$('subtitle').textContent='新店家開通';$('join').hidden=false;if(D.liffId)initLiff();return}

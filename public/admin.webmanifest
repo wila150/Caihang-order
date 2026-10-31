@@ -1,0 +1,10 @@
+{
+  "name": "叫貨後台",
+  "short_name": "叫貨後台",
+  "start_url": "/admin",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4F6F2",
+  "theme_color": "#2F6B4F",
+  "icons": [{ "src": "/icon-leaf.png", "sizes": "180x180", "type": "image/png" }]
+}
