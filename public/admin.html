@@ -855,7 +855,6 @@ async function liffReady(){
   await liff.init({liffId});
 }
 // 主畫面打開的（沒有網址列）：跳去 LINE 登入會回不來，改用登入碼
-const standaloneApp=()=>navigator.standalone||matchMedia('(display-mode: standalone)').matches;
 let pairTimer=null,pairPoll=null;
 async function pairLogin(){
   clearInterval(pairTimer);$('loginErr').textContent='';
@@ -878,17 +877,8 @@ async function pairLogin(){
     pairTimer=setInterval(pairPoll,2500);
   }catch(e){$('loginErr').textContent=e.message||'失敗'}
 }
-async function lineLogin(){
-  if(standaloneApp()||new URLSearchParams(location.search).get('pair')){pairLogin();return}
-  $('lineBtn').disabled=true;$('loginErr').textContent='';
-  try{
-    await liffReady();
-    // 還沒登入 LINE：跳去 LINE 登入，回來時再接著做（sessionStorage 記著）
-    if(!liff.isLoggedIn()){sessionStorage.setItem('lineLogin','1');liff.login({redirectUri:location.origin+'/admin'});return}
-    await finishLineLogin();
-  }catch(e){$('loginErr').textContent=e.message||'LINE 登入失敗'}
-  finally{$('lineBtn').disabled=false}
-}
+// 用 LINE 登入一律用登入碼：跳去 LINE 登入頁再轉回來，在手機上（LINE App、Safari、主畫面切來切去）常常接不上、一直重來
+const lineLogin=pairLogin;
 async function finishLineLogin(){
   sessionStorage.removeItem('lineLogin');
   const r=await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'lineLogin',accessToken:liff.getAccessToken()})});
@@ -900,6 +890,8 @@ async function finishLineLogin(){
 }
 // 從 LINE 登入跳回來
 async function resumeLineLogin(){
+  // 舊的跳轉登入留下的記號：只有網址真的帶著 LINE 回來的參數才接著做，不然清掉，免得一直重來
+  if(sessionStorage.getItem('lineLogin')==='1'&&!/[?&](code|liffClientId)=/.test(location.search)){sessionStorage.removeItem('lineLogin');return false}
   if(sessionStorage.getItem('lineLogin')!=='1')return false;
   try{await liffReady();if(liff.isLoggedIn()){await finishLineLogin();return true}}catch(e){showLogin(e.message||'LINE 登入失敗');return true}
   sessionStorage.removeItem('lineLogin');return false;
