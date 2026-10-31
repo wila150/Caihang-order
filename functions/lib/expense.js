@@ -99,6 +99,9 @@ export async function learnWord(item, cat) {
 // 金額＝最後一個數字（可以有 $、逗號、元、塊）；@ 後面是付給誰；其他字是品名
 export function parseExpenseText(raw, now = today()) {
   let s = String(raw || '').replace(/^(記帳|支出|花費?|付款?)\s*[:：]?\s*/, '').trim();
+  // 金額簡寫：1.2萬、1萬2千、12k、3千 → 數字
+  s = s.replace(/(\d+(?:\.\d+)?)\s*萬\s*(?:(\d)\s*千)?/g, (_, a, b) => String(Math.round(+a * 10000 + (b ? +b * 1000 : 0))))
+    .replace(/(\d+(?:\.\d+)?)\s*(千|[kK])(?![a-zA-Z])/g, (_, a) => String(Math.round(+a * 1000)));
   let date = now;
   const rel = s.match(/^(今天|昨天|前天)\s*/);
   if (rel) { date = addDays(now, { 今天: 0, 昨天: -1, 前天: -2 }[rel[1]]); s = s.slice(rel[0].length); }

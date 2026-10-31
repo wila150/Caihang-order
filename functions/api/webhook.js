@@ -5,7 +5,7 @@ import { bossIds, bindBoss } from '../lib/boss.js';
 import { pairApprove } from '../lib/linelogin.js';
 import { getFirestore } from 'firebase-admin/firestore';
 import * as ex from '../lib/expense.js';
-import { supplierLedger, manualPurchase } from '../lib/purchase.js';
+import { supplierLedger, manualPurchase, paySupplier, removeSupplierPay } from '../lib/purchase.js';
 import { orderLink } from '../lib/token.js';
 import { originOf } from '../lib/http.js';
 import { openDate, today, addDays, label, cutoffLabel, getRulesNow, buyDate } from '../lib/dates.js';
@@ -224,19 +224,21 @@ async function handle(e, origin) {
 /* ---------- 記帳（老闆的 LINE） ---------- */
 const money = (n) => '$' + Math.round(n).toLocaleString('en-US');
 const mdOf = (d) => `${+d.slice(5, 7)}/${+d.slice(8, 10)}`;
-const HOWTO = '記帳直接打「品名 金額」就好，例如：\n・油錢 500\n・昨天 紙箱 800\n・10/28 付大成 12000 進貨\n@ 後面可以寫付給誰，例如「進貨 12000 @大成」。\n\n查帳打「今天支出」或「本月支出」。';
+const HOWTO = '記帳直接打「品名 金額」就好，例如：\n・進貨 七美 12000（跟七美進貨）\n・已付 七美 12000（付錢給七美）\n・油錢 500\n・昨天 紙箱 800\n金額可以打 1.2萬、3千；一次打好幾行就記好幾筆。\n\n查帳打「今天支出」「本月支出」；廠商打「應付帳款」「七美要付多少」。';
 
 // LINE 按鈕最多 13 個：品項分類（ERP 有 35 類）放後面，油錢、薪水這些才按得到
 // 舊的品項分類（換成廠商後藏起來的）不出現在按鈕
 const byUse = (cats) => [...cats.filter((c) => !c.product), ...cats.filter((c) => c.product && !c.hidden)];
 
 function savedReply(e, cats, head = '✅ 已記帳') {
-  const others = byUse(cats).map((c) => c.name).filter((n) => n !== e.cat).slice(0, 11);
+  const others = byUse(cats).map((c) => c.name).filter((n) => n !== e.cat).slice(0, 10);
   return {
     type: 'text',
     text: `${head}\n${mdOf(e.date)} ${e.item} ${money(e.amount)}${e.payee ? `（${e.payee}）` : ''}${e.note ? `\n備註：${e.note}` : ''}\n分類：${e.cat}${e.cat === ex.OTHER ? '\n分類不對的話點下面改，下次打一樣的字就會記住' : ''}`,
     quickReply: { items: [
       { type: 'action', action: { type: 'postback', label: '↩ 取消這筆', data: `action=expdel&id=${e.id}`, displayText: '取消這筆' } },
+      // 連續記同一家：點一下再打金額就好
+      { type: 'action', action: { type: 'postback', label: `＋ 再記 ${e.cat}`.slice(0, 20), data: `action=expick&cat=${encodeURIComponent(e.cat)}`, displayText: `再記 ${e.cat}` } },
       ...others.map((n) => ({ type: 'action', action: { type: 'postback', label: `改成 ${n}`.slice(0, 20), data: `action=expcat&id=${e.id}&cat=${encodeURIComponent(n)}`, displayText: `改成 ${n}` } })),
     ] },
   };
@@ -277,6 +279,17 @@ async function expenseChat({ said, pb, action, store, uid, pick }) {
     const eg = (await ex.getCats()).find((c) => c.name === cat)?.words?.[0];
     return { type: 'text', text: `記「${cat}」：請打品名和金額，例如\n${eg ? `${eg} 1500` : `${cat} 500`}\n只打金額也可以。` };
   }
+  // 取消剛登記的付款
+  if (action === 'paydel') {
+    await removeSupplierPay(pb.get('id')).catch(() => {});
+    return { type: 'text', text: '已取消這筆付款' };
+  }
+  // 一次記好幾筆的「全部取消」（記帳和付款都有）
+  if (action === 'expdelm') {
+    const ids = String(pb.get('ids') || '').split(',').filter(Boolean).slice(0, 20);
+    const done = await Promise.all(ids.map((id) => (id.startsWith('p:') ? removeSupplierPay(id.slice(2)) : ex.removeExpense(id)).then(() => 1, () => 0)));
+    return { type: 'text', text: `已取消 ${done.reduce((a, b) => a + b, 0)} 筆` };
+  }
   if (action === 'expdel') {
     try {
       const e = await ex.removeExpense(pb.get('id'));
@@ -306,7 +319,7 @@ async function expenseChat({ said, pb, action, store, uid, pick }) {
   }
   // 圖文選單「記帳」：先選分類
   if (said === '記帳') {
-    const cats = await ex.getCats();
+    const cats = await frequentCats();
     return {
       type: 'text',
       text: '要記哪一類？點下面的分類，再打「品名 金額」。\n也可以直接打，例如「高麗菜 1500」「油錢 500」，會自動分類。',
@@ -328,6 +341,41 @@ async function expenseChat({ said, pb, action, store, uid, pick }) {
   // 切到店家選單（測試叫貨）時：要「記帳」開頭才算記帳；老闆選單：打「品名 金額」就記
   const prefixed = /^(記帳|支出)\s*[:：]?\s*\S/.test(said);
   if (store && !prefixed && !pick) return null;
+  // 「已付 七美 12000」：付給廠商（登記付款，跟後台「記付款」一樣），不是進貨
+  if (!pick && !store) {
+    const rows0 = said.split(/\n+/).map((x) => x.trim()).filter(Boolean);
+    if (rows0.length === 1) {
+      const pay = await payLine(said);
+      if (pay) {
+        const x = await paySupplier(pay, (await displayName(uid)) || '老闆 LINE');
+        const r = (await supplierLedger(x.month)).find((y) => y.supplier === x.supplier);
+        return {
+          type: 'text',
+          text: `💰 已付 ${x.supplier} ${money(x.amount)}（${mdOf(x.date)}）${x.note ? `\n備註：${x.note}` : ''}${r ? `\n${+x.month.slice(5)} 月${r.left > 0 ? `還要付 ${money(r.left)}` : r.left < 0 ? `多付了 ${money(-r.left)}` : '付清了'}（進貨 ${money(r.total)}，已付 ${money(r.paid)}）` : ''}`,
+          quickReply: { items: [{ type: 'action', action: { type: 'postback', label: '↩ 取消這筆', data: `action=paydel&id=${x.id}`, displayText: '取消這筆付款' } }] },
+        };
+      }
+    }
+  }
+  // 一次好幾行，每行一筆：「進貨 七美 12000↵已付 聯興 5000↵油錢 500」
+  const rows = said.split(/\n+/).map((x) => x.trim()).filter(Boolean);
+  if (rows.length > 1 && !pick) {
+    const parsed = await Promise.all(rows.map(async (x) => [x, await payLine(x), ex.parseExpenseText(x.replace(/^(記帳|支出)\s*[:：]?\s*/, ''))]));
+    if (parsed.filter(([, a, p]) => a || p).length >= 2 || (prefixed && parsed.some(([, a, p]) => a || p))) {
+      const by = (await displayName(uid)) || '老闆 LINE';
+      const saved = [];
+      for (const [, a, p] of parsed.filter(([, a, p]) => a || p).slice(0, 20)) {
+        if (a) { const x = await paySupplier(a, by); saved.push({ id: 'p:' + x.id, text: `💰 已付 ${x.supplier} ${money(x.amount)}`, amount: x.amount }); }
+        else { const e = await ex.addExpense(p, { by, source: 'line' }); saved.push({ id: e.id, text: `・${e.payee ? `進貨 ${e.payee}` : e.cat} ${e.item !== '進貨' && e.item !== e.cat ? e.item + ' ' : ''}${money(e.amount)}`, amount: e.amount }); }
+      }
+      const bad = parsed.filter(([, a, p]) => !a && !p).map(([x]) => x);
+      return {
+        type: 'text',
+        text: [`✅ 記了 ${saved.length} 筆`, ...saved.map((x) => x.text), ...(bad.length ? ['', `看不懂、沒記：${bad.join('、')}`] : [])].join('\n'),
+        quickReply: { items: [{ type: 'action', action: { type: 'postback', label: '↩ 全部取消', data: `action=expdelm&ids=${saved.map((x) => x.id).join(',')}`, displayText: '全部取消' } }] },
+      };
+    }
+  }
   // 選了分類後只打金額（「1500」）：品名就用分類名稱
   const p = ex.parseExpenseText(said) || (pick && /^[$＄]?\s*\d[\d,]*\s*(元|塊)?$/.test(said) ? ex.parseExpenseText(`${pick} ${said}`) : null);
   if (!p) return prefixed || pick ? { type: 'text', text: `看不懂金額。${HOWTO}` } : null;
@@ -353,16 +401,36 @@ async function payText(when, name) {
   if (who) {
     const r = L.find((x) => x.supplier.includes(who) || who.includes(x.supplier));
     if (!r) return { type: 'text', text: `${mm} 月沒有「${who}」的進貨單或付款紀錄。拍上游的出貨單傳過來，或打「進貨單 ${who} 金額」登記。` };
-    return { type: 'text', text: [`🏭 ${r.supplier} ${mm} 月`, `進貨 ${r.invoices.length} 張 ${money(r.total)}`, `已付 ${money(r.paid)}`, r.left > 0 ? `👉 還要付 ${money(r.left)}` : r.left < 0 ? `多付了 ${money(-r.left)}` : '✅ 付清了',
+    return { type: 'text', text: [`🏭 ${r.supplier} ${mm} 月`, `進貨 ${r.invoices.length} 筆 ${money(r.total)}`, `已付 ${money(r.paid)}`, r.left > 0 ? `👉 還要付 ${money(r.left)}` : r.left < 0 ? `多付了 ${money(-r.left)}` : '✅ 付清了',
       ...(r.over ? [`（其中上游多算 ${money(r.over)}，付錢前先確認）`] : []),
       ...(r.items.length ? ['', '買了什麼：', ...r.items.slice(0, 15).map((x) => `・${x.name} ${+x.qty.toFixed(2)}${x.unit} ${money(x.amount)}`), ...(r.items.length > 15 ? [`…還有 ${r.items.length - 15} 樣，到後台「進貨單 → 廠商總帳」看`] : [])] : []),
-      '', '進貨單：', ...r.invoices.slice(-10).map((x) => `・${mdOf(x.date)} ${money(x.total)}${x.lines.length ? `（${x.lines.length} 項）` : ''}`),
+      '', '進貨：', ...r.invoices.slice(-10).map((x) => `・${mdOf(x.date)} ${money(x.total)}${x.lines.length ? `（${x.lines.length} 項）` : ''}`),
       ...(r.payments.length ? ['', '付款：', ...r.payments.slice(-10).map((x) => `・${mdOf(x.date)} ${money(x.amount)}`)] : [])].join('\n') };
   }
   const owe = L.filter((r) => r.left > 0);
   if (!L.length) return { type: 'text', text: `${mm} 月還沒有進貨單。拍上游的出貨單傳過來，或打「進貨單 廠商 金額」登記。` };
   // 每家分開列，不加總
   return { type: 'text', text: [`🏭 ${mm} 月各廠商還要付`, '', ...(owe.length ? owe.map((r) => `・${r.supplier}：${money(r.left)}（進貨 ${money(r.total)}，已付 ${money(r.paid)}）`) : ['✅ 都付清了']), '', '打「聯興要付多少」看一家的明細。'].join('\n') };
+}
+
+// 「已付 七美 12000」「付款 聯興 5000 匯款」：認得的廠商才算付款；「付房租 20000」這種照樣是記帳
+const PAY_RE = /^(已付|付款|付給)\s*/;
+async function payLine(text) {
+  if (!PAY_RE.test(text)) return null;
+  const p = ex.parseExpenseText(text.replace(PAY_RE, ''));
+  if (!p) return null;
+  const all = `${p.item}${p.payee}${p.note}`.replace(/[\s　]/g, '');
+  const s = (await ex.getCats()).filter((c) => c.supplier).map((c) => c.name).sort((a, b) => b.length - a.length).find((x) => all.includes(x));
+  return s ? { supplier: s, amount: p.amount, date: p.date, note: p.note.replace(s, '').trim() } : null;
+}
+
+// 記帳按鈕：這兩個月記最多次的分類（廠商）排前面，再來是其他支出分類
+async function frequentCats() {
+  const t = today(), [cats, a, b] = await Promise.all([ex.getCats(), ex.listExpenses(t.slice(0, 7)), ex.listExpenses(addDays(t.slice(0, 7) + '-01', -1).slice(0, 7))]);
+  const n = {};
+  for (const e of [...a, ...b]) n[e.cat] = (n[e.cat] || 0) + 1;
+  const used = cats.filter((c) => n[c.name] && !c.hidden).sort((x, y) => n[y.name] - n[x.name]);
+  return [...used, ...byUse(cats).filter((c) => !used.includes(c))];
 }
 
 // 「還要買」：現在採買的配送日，還沒買齊的品項
