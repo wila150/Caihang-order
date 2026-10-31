@@ -211,6 +211,9 @@ export async function POST(request) {
       case 'priceGroups':
         need(me, 'stores');
         return json({ priceGroups: await shop.savePriceGroups(b.priceGroups) });
+      case 'importSales':
+        need(me, 'stores');
+        return json(await shop.importSales(b.rows, { dry: b.dry !== false }));
       case 'chainGroups':
         need(me, 'stores');
         return json(await shop.chainGroups());

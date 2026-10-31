@@ -44,7 +44,9 @@ export function pickCandidates(text, products, { usual = [], storeAliases = [] }
   for (const p of products) if (best.has(p.id)) hitBase.set(baseName(p.name), Math.max(hitBase.get(baseName(p.name)) || 0, best.get(p.id)));
   const ranked = products.filter((p) => hitBase.has(baseName(p.name))).sort((a, b) => hitBase.get(baseName(b.name)) - hitBase.get(baseName(a.name)) || (best.get(b.id) || 0) - (best.get(a.id) || 0));
   const keep = new Set([...ranked.slice(0, 200).map((p) => p.id), ...usual.slice(0, 60), ...storeAliases.map((a) => a.pid)]);
-  return products.filter((p) => keep.has(p.id));
+  // 常叫的排前面（同樣標常叫時，AI 選前面的＝這家店買最多的）
+  const rank = new Map(usual.map((pid, i) => [pid, i]));
+  return products.filter((p) => keep.has(p.id)).sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9));
 }
 
 // 清單裡用短編號（1、2、3…）代替品項 id，送出去的字比較少
@@ -65,6 +67,7 @@ ${mine.join('\n')}
 - 台灣慣用說法：${PRESET.aiRule}「半斤」＝0.5 斤；1 斤＝16 兩，例如「一斤二兩」＝1.125 斤。「斤」「台斤」是同一個（600 公克）；1 公斤＝1000 公克＝約 1.667 台斤，清單單位是斤、客人寫公斤時要換算（例如 3 公斤＝5 斤），清單單位是公斤、客人寫斤時反過來換算。
 - 品項有「換算」時，客人用那個包裝單位叫（例如「高麗菜2件」，換算 1件=10斤），qty 要乘成品項的單位（20），raw 保留原本寫法。
 - 同一個菜有好幾個品項、只差單位或規格（例如「高麗菜｜斤」「高麗菜(公)｜公斤」「高麗菜(件)｜件」）：客人寫的單位是哪個就選單位一樣的那個；沒寫單位時選標「常叫」的，都沒有就選單位是斤的。括號裡寫「切」「絲」「去皮」這種是加工過的，客人有寫才選。
+- 客人寫的品名不完整、對到好幾個不同的品項（例如「蔥花」→「粗蔥花」「細蔥花」；或品名只差 A／B／C、大／小、粗／細、進口／本地）：選標「常叫」的那個（好幾個都標就選清單裡排前面的）。都沒標「常叫」就不要猜，放進 unknown，寫成客人原本的字加上可能的品項，例如「蔥花2斤（粗蔥花？細蔥花？）」。只對到一個品項時直接選。
 - 數量沒寫單位時，用該品項的單位。客人寫的單位和清單不同時（例如清單是「包」客人寫「斤」），照清單單位換算不了就放進 unknown。
 - 對不到清單的品項放進 unknown，保留客人原本的寫法，不要硬塞到相近的品項。
 - 照片：先把每一行字照原樣抄到 lines（看不清楚的字用 ? 代替），再一行一行對應品項。手寫的「斤」常寫成「斤」「f」「厂」，「包」常寫成「包」「勹」「ㄅ」，阿拉伯數字和國字都要認。
@@ -120,7 +123,7 @@ export async function parseOrder({ text, image, products, storeAliases = [], usu
   const user = image && !big
     ? [{ type: 'text', text: '這是客人的手寫叫貨單照片，請整理成 JSON。' }, { type: 'image_url', image_url: { url: image } }]
     : text;
-  const j = await askJson([{ role: 'system', content: systemPrompt(list, storeAliases, new Set(usual.slice(0, 60))) }, { role: 'user', content: user }], { image: image && !big });
+  const j = await askJson([{ role: 'system', content: systemPrompt(list, storeAliases, new Set(usual)) }, { role: 'user', content: user }], { image: image && !big });
   if (read) { j.lines = read.lines; if (!j.note && read.note) j.note = read.note; }
 
   // 只收清單裡、有上架的品項，同一品項合併；pid 是清單的短編號（舊格式送 id 也認得）

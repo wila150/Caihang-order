@@ -33,9 +33,10 @@ export async function GET(request) {
     const D = openDate();
     const AF = await shop.addonFor(store.id);
     const A = AF?.date;
-    const [products, order, last, addonSlip, addonBase] = await Promise.all([
+    const [products, order, last, addonSlip, addonBase, usual] = await Promise.all([
       shop.getProducts(), shop.getOrder(D, store.id), shop.lastOrder(store.id, D),
       A ? shop.addonSlipOf(store.id, A) : null, A ? shop.slipsOfDay(store.id, A) : [],
+      shop.usualPids(store.id).catch(() => []),
     ]);
     return json({
       shopName: SHOP.name,
@@ -45,6 +46,8 @@ export async function GET(request) {
       liffId: SHOP.liffId,
       liang: getRulesNow().liang !== false,
       store: { name: store.name },
+      // 叫貨頁「常用」：上一張、這一張，加上這家店常叫的（含 ERP 銷售紀錄）
+      usual: usual.slice(0, 40),
       date: D,
       dateLabel: label(D),
       cutoff: cutoffLabel(D),

@@ -229,7 +229,7 @@ function initLiff(){
   s.onload=()=>liff.init({liffId:D.liffId}).then(()=>{liffReady=liff.isInClient()}).catch(()=>{});
   document.head.appendChild(s);
 }
-const frequent=()=>new Set([...(D.last?.items||[]).map(i=>i.pid),...(D.order?.items||[]).map(i=>i.pid)]);
+const frequent=()=>new Set([...(D.last?.items||[]).map(i=>i.pid),...(D.order?.items||[]).map(i=>i.pid),...(D.usual||[])]);
 const had=()=>!!D.order;
 
 function render(){renderChips();renderList();renderBar()}

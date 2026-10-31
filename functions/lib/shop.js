@@ -12,6 +12,7 @@
 //   users/{uid}         後台帳號的角色（見 lib/auth.js）
 //   bought/{日期}        { items: { pid: 數量 } }：採買進度，這個配送日的貨已經買了多少
 //   storeAliases/{店}    { items: [{ text, pid }] }：只有這家店用的叫法（例如這家說「大的」是指某個品項）
+//   storeHistory/{店}    { items: { pid: 金額 }, at }：從 ERP「客戶產品銷售統計表」匯進來的，這家店以前買過什麼（AI 分粗細大小、叫貨頁「常用」）
 import crypto from 'node:crypto';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { PRESET, DEFAULT_PRODUCTS, CATEGORIES, DEFAULT_UNITS, UNITS_VERSION, UNITS_ADDED } from './config.js';
@@ -702,12 +703,47 @@ export async function ordersOfDate(date, { withEmpty = false } = {}) {
 }
 
 // 這家店最近一張（配送日早於 date 的）訂單，用來「照上次叫」
-// 這家店最近常叫的品項（AI 叫貨優先比對這些），叫越多次越前面
+// 這家店常叫的品項（AI 叫貨優先比對這些、叫貨頁「常用」）：這個系統的訂單叫越多次越前面，再來是 ERP 銷售紀錄買越多錢的
 export async function usualPids(sid, n = 20) {
-  const snap = await db().collection('orders').where('storeId', '==', sid).where('date', '<', '9999').orderBy('date', 'desc').limit(n).get();
+  const [snap, hist] = await Promise.all([
+    db().collection('orders').where('storeId', '==', sid).where('date', '<', '9999').orderBy('date', 'desc').limit(n).get(),
+    data('storeHistory/' + sid),
+  ]);
   const count = new Map();
   for (const d of snap.docs) for (const i of d.data().items || []) count.set(i.pid, (count.get(i.pid) || 0) + 1);
-  return [...count].sort((a, b) => b[1] - a[1]).map(([pid]) => pid);
+  const mine = [...count].sort((a, b) => b[1] - a[1]).map(([pid]) => pid);
+  const erp = Object.entries(hist?.items || {}).sort((a, b) => b[1] - a[1]).map(([pid]) => pid);
+  return [...new Set([...mine, ...erp])];
+}
+
+// 匯入 ERP「客戶產品銷售統計表」：rows [{ storeCode, productCode, amount }]，照客戶代號、產品代號對到店家和品項
+// 每家店整份換掉（建議匯出最近幾個月的）；同一家店同一個品項的金額加總，買越多越前面
+export async function importSales(input, { dry = true } = {}) {
+  if (!Array.isArray(input) || !input.length) throw new UserError('Excel 裡沒有讀到銷售紀錄，請確認是 ERP 的客戶產品銷售統計表');
+  const [stores, products] = await Promise.all([getStores(), getProducts()]);
+  const sOf = new Map(stores.filter((s) => s.code).map((s) => [s.code, s.id]));
+  const pOf = new Map(products.filter((p) => p.code).map((p) => [p.code, p.id]));
+  const hist = new Map(), missS = new Set();
+  let missP = 0, rows = 0;
+  for (const r of input.slice(0, 50000)) {
+    const sid = sOf.get(clean(r.storeCode, 30)), pid = pOf.get(clean(r.productCode, 20));
+    if (!sid) { if (r.storeCode) missS.add(clean(r.storeCode, 30)); continue; }
+    if (!pid) { missP++; continue; }
+    const m = hist.get(sid) || {};
+    m[pid] = Math.round((m[pid] || 0) + Math.max(1, +r.amount || 0));
+    hist.set(sid, m);
+    rows++;
+  }
+  if (!hist.size) throw new UserError('沒有對到任何店家，請先「匯入 ERP 客戶」');
+  const summary = { stores: hist.size, rows, missStores: [...missS].slice(0, 20), missStoreCount: missS.size, missProducts: missP };
+  if (dry) return summary;
+  const at = new Date().toISOString(), list = [...hist];
+  for (let k = 0; k < list.length; k += 400) {
+    const batch = db().batch();
+    for (const [sid, items] of list.slice(k, k + 400)) batch.set(doc('storeHistory/' + sid), { items, at });
+    await batch.commit();
+  }
+  return summary;
 }
 
 export async function lastOrder(sid, date) {

@@ -35,5 +35,5 @@ LINE 叫貨＋後台管理系統：店家在 LINE 官方帳號叫貨（打字、
 ## 目前狀況（2026-10-31）
 - 系統已上線測試中；菜行的需求訪談還沒做（訪談單在 ~/Downloads/菜行需求訪談單.pdf）
 - 合約草稿在 Claude Docs：https://claude.ai/artifact/UJ9PeKFYA1TYmjkUtMEc95 （維護費每月 200 元、年繳 2,000 元）
-- ERP 對接：菜行 ERP 上叫「明恩農產行」，已給產品、分類、客戶、連鎖店類別、廠商的匯出檔（專案資料夾裡的 xlsx，客戶資料不要進 git）；後台品項頁「匯入 ERP 產品」（照產品代號比對，品項存 `code`、`supplier`）、店家頁「匯入 ERP 客戶」（店家存 `code`、`chain`、`contact`），同連鎖店同一個報價組（報價組存 `chain`，`shop.chainGroups`；分店換組時同連鎖店一起換），採買總表可依廠商分組。列印有 ERP 格式的 9 種單子（設定 → 列印 勾要顯示哪些）。品項超過 300 個時 AI 叫貨只送候選品項（`ai.js` pickCandidates），照片先抄字再對品項。還沒拿到 ERP 的訂單匯入範本
+- ERP 對接：菜行 ERP 上叫「明恩農產行」，已給產品、分類、客戶、連鎖店類別、廠商的匯出檔（專案資料夾裡的 xlsx，客戶資料不要進 git）；後台品項頁「匯入 ERP 產品」（照產品代號比對，品項存 `code`、`supplier`）、店家頁「匯入 ERP 客戶」（店家存 `code`、`chain`、`contact`），同連鎖店同一個報價組（報價組存 `chain`，`shop.chainGroups`；分店換組時同連鎖店一起換），採買總表可依廠商分組。列印有 ERP 格式的 9 種單子（設定 → 列印 勾要顯示哪些）。品項超過 300 個時 AI 叫貨只送候選品項（`ai.js` pickCandidates），照片先抄字再對品項。ERP「客戶產品銷售統計表」可以匯進 storeHistory（`shop.importSales`），AI 用它分辨粗細大小（標「常叫」），沒買過的不猜、放 unknown 問客人。還沒拿到 ERP 的訂單匯入範本
 - 菜行品項分類改用 ERP 的 35 類（F01 葉菜類～F35 花，見 `config.js`），不再用 POS 的 7 類
