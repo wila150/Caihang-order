@@ -698,6 +698,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
 
     <h2 style="margin-top:28px">報價組</h2>
     <div id="groupList"></div>
+    <div class="bar"><button class="pbtn" type="button" id="chainG">連鎖店各建一個報價組</button></div>
     <div class="savebar"><button class="pbtn" id="addG">＋ 新增報價組</button><button class="ok" id="saveG" disabled>儲存報價組</button><span id="gDirty"></span></div>
   </section>
 </div>
@@ -1482,18 +1483,24 @@ async function saveCostTypes(types,msg){
 /* ---------- 報價組 ---------- */
 let G=null,gDirty=false;
 const ruleText=g=>g.type==='percent'?`${+(g.value/10).toFixed(1)} 折`:g.type==='minus'?`每單位減 $${g.value}`:'照基本價';
+// 固定價清單展開狀態：有填固定價的預設展開，手動開關過就照手動的
+let openFix=new Set(),fixQ={};
+const fixOpen=(i,nFix)=>openFix.has(i)||(nFix>0&&!openFix.has('x'+i));
 function renderGroups(){
   if(!G||!gDirty)G=structuredClone(D.priceGroups||[]);
   $('groupList').innerHTML=G.map((g,i)=>{
     const nFix=Object.values(g.fixed||{}).filter(v=>v!==''&&v!=null).length;
     const used=D.stores.filter(s=>s.groupId===g.id).length;
+    // 固定價清單（品項多的時候兩千多格）點開才畫，有搜尋框
+    const open=fixOpen(i,nFix),fq=(fixQ[i]||'').trim();
     return `<div class="grp"><div class="gh">
       <input class="gname" data-gf="name" data-i="${i}" value="${esc(g.name)}" placeholder="例如：飯店組" aria-label="報價組名稱">
       <select data-gf="type" data-i="${i}" aria-label="規則"><option value="none" ${g.type==='none'?'selected':''}>照基本價</option><option value="percent" ${g.type==='percent'?'selected':''}>打折</option><option value="minus" ${g.type==='minus'?'selected':''}>每單位減</option></select>
       ${g.type==='none'?'':`<input class="gval" type="number" min="0" inputmode="decimal" data-gf="value" data-i="${i}" value="${g.value}" aria-label="${g.type==='percent'?'折數':'金額'}"><span class="meta">${g.type==='percent'?'（9 折填 90）':'元'}</span>`}
-      <span class="meta">${used} 家店在用</span><button class="x" data-gdel="${i}" aria-label="刪除報價組">刪除</button></div>
-      <details ${nFix?'open':''}><summary>個別品項固定價（${nFix} 項）：填了就不管基本價，固定用這個價</summary>
-      <div class="fx">${D.products.filter(p=>p.on||g.fixed?.[p.id]!=null).map(p=>`<label>${esc(p.name)}<span>$<input type="number" min="0" inputmode="numeric" data-gfix="${p.id}" data-i="${i}" value="${g.fixed?.[p.id]??''}" placeholder="—" aria-label="${esc(p.name)} 固定價">/${esc(p.unit)}</span></label>`).join('')}</div></details></div>`;
+      <span class="meta">${g.chain?`連鎖店・`:''}${used} 家店在用</span><button class="x" data-gdel="${i}" aria-label="刪除報價組">刪除</button></div>
+      <details ${open?'open':''} data-gfx="${i}"><summary>個別品項固定價（${nFix} 項）：填了就不管基本價，固定用這個價</summary>
+      ${open?`<input class="psearch" type="search" data-fixq="${i}" value="${esc(fq)}" placeholder="搜尋品項（只列有填的和搜尋到的）" aria-label="搜尋固定價品項">
+      <div class="fx">${D.products.filter(p=>g.fixed?.[p.id]!=null&&g.fixed[p.id]!==''||(fq?p.on&&p.name.includes(fq):D.products.length<=300&&p.on)).slice(0,200).map(p=>`<label>${esc(p.name)}<span>$<input type="number" min="0" inputmode="numeric" data-gfix="${p.id}" data-i="${i}" value="${g.fixed?.[p.id]??''}" placeholder="—" aria-label="${esc(p.name)} 固定價">/${esc(p.unit)}</span></label>`).join('')}</div>`:''}</details></div>`;
   }).join('')||'<div class="empty">還沒有報價組，所有店家都照基本價。</div>';
   $('saveG').disabled=!gDirty;$('gDirty').textContent=gDirty?'有尚未儲存的修改':'';
 }
@@ -1886,6 +1893,21 @@ $('aeFind').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e
 $('saveDP').addEventListener('click',saveDayPrices);
 $('saveS').addEventListener('click',saveStores);
 $('saveG').addEventListener('click',saveGroups);
+$('chainG').addEventListener('click',async()=>{
+  if(gDirty||sDirty){toast('請先儲存店家和報價組的修改');return}
+  const n=new Set(D.stores.map(s=>s.chain).filter(Boolean)).size;
+  if(!n){toast('店家還沒有連鎖店資料，先「匯入 ERP 客戶」');return}
+  if(!confirm(`${n} 個連鎖店各建一個報價組（先照基本價），分店都放進自己連鎖店的組。\n之後改這組的折扣或固定價，同連鎖店的分店會一起變。\n\n確定？`))return;
+  try{const j=await api('POST',{action:'chainGroups'});await load();toast(`新建 ${j.made} 個報價組，${j.moved} 家分店放進連鎖店的組`)}catch(e){toast(e.message)}
+});
+// 固定價：點開才畫；搜尋框打字只重畫清單
+// 重畫時 details 帶 open 也會觸發 toggle，狀態沒變就不理，免得一直重畫
+document.addEventListener('toggle',e=>{const d=e.target;if(!d.dataset?.gfx)return;const i=+d.dataset.gfx,g=G[i];if(!g)return;
+  if(fixOpen(i,Object.values(g.fixed||{}).filter(v=>v!==''&&v!=null).length)===d.open)return;
+  if(d.open){openFix.add(i);openFix.delete('x'+i)}else{openFix.delete(i);openFix.add('x'+i)}renderGroups()},true);
+// 固定價搜尋：打注音選字中不重畫，選好字才重畫，重畫後游標放回搜尋框
+function fixSearch(t){const i=+t.dataset.fixq;fixQ[i]=t.value;renderGroups();const el=document.querySelector(`[data-fixq="${i}"]`);if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}}
+document.addEventListener('compositionend',e=>{if(e.target.dataset?.fixq!=null)fixSearch(e.target)});
 $('addG').addEventListener('click',()=>{G.push({id:'',name:'',type:'percent',value:90,fixed:{}});gDirty=true;renderGroups();document.querySelector(`[data-gf="name"][data-i="${G.length-1}"]`).focus()});
 $('addS').addEventListener('click',()=>{S.push({id:'',name:'',route:Math.max(0,...S.map(s=>s.route))+1,phone:'',address:'',on:true,members:[]});sDirty=true;renderStores();document.querySelector(`[data-sf="name"][data-i="${S.length-1}"]`).focus()});
 document.addEventListener('click',async e=>{
@@ -2060,6 +2082,7 @@ document.addEventListener('click',async e=>{
 });
 document.addEventListener('input',e=>{
   const t=e.target;
+  if(t.dataset.fixq!=null){if(!e.isComposing)fixSearch(t);return}
   if(t.dataset.pf!=null){const p=P[+t.dataset.i],f=t.dataset.pf;p[f]=f==='on'||f==='liang'?t.checked:t.value;pDirty=true;$('saveP').disabled=false;$('pDirty').textContent='有尚未儲存的修改';if(f==='on'||f==='cat'||f==='unit')renderProducts()}
   if(t.dataset.cd!=null||t.dataset.cm!=null){rDirty=true;$('saveCosts')&&($('saveCosts').disabled=false);$('cDirty')&&($('cDirty').textContent='有尚未儲存的修改')}
   if(t.dataset.dc!=null){dcDraft[t.dataset.dc]=t.value;$('dpInfo').textContent='有尚未儲存的修改';$('dpInfo').style.color='var(--alert)'}

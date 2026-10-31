@@ -345,11 +345,34 @@ export async function savePriceGroups(input) {
       if (!(n >= 0)) throw new UserError(`「${name}」有固定價不正確`);
       fixed[pid] = n;
     }
-    return { id: clean(g.id, 30) || rid('g'), name, type, value, fixed };
+    return { id: clean(g.id, 30) || rid('g'), name, type, value, fixed, chain: clean(g.chain, 30) }; // chain：這組是哪個連鎖店的
   });
   await doc('settings/priceGroups').set({ items: list });
   await repriceOpen();
   return list;
+}
+
+// 同連鎖店同一個報價：每個連鎖店一個報價組（沒有就建，先照基本價），分店全部放進去
+export async function chainGroups() {
+  const [stores, groups] = await Promise.all([getStores(), getPriceGroups()]);
+  const chains = [...new Set(stores.map((s) => s.chain).filter(Boolean))];
+  let made = 0, moved = 0;
+  const names = new Set(groups.map((g) => g.name));
+  for (const c of chains) {
+    if (groups.some((g) => g.chain === c)) continue;
+    // 已經有同名的報價組就直接當成這個連鎖店的
+    const same = groups.find((g) => g.name === c && !g.chain);
+    if (same) { same.chain = c; continue; }
+    groups.push({ id: rid('g') + made, name: names.has(c) ? `${c}（連鎖）` : c, type: 'none', value: 0, fixed: {}, chain: c });
+    made++;
+  }
+  const gOf = Object.fromEntries(groups.filter((g) => g.chain).map((g) => [g.chain, g.id]));
+  const batch = db().batch();
+  for (const s of stores) if (s.chain && gOf[s.chain] && s.groupId !== gOf[s.chain]) { batch.set(doc('stores/' + s.id), { groupId: gOf[s.chain] }, { merge: true }); moved++; }
+  batch.set(doc('settings/priceGroups'), { items: groups });
+  await batch.commit();
+  if (moved) await repriceOpen();
+  return { made, moved, chains: chains.length, priceGroups: groups, stores: await getStores() };
 }
 
 // 店家換組、報價組改規則後，今天（含）以後還沒送的訂單重算
@@ -467,6 +490,10 @@ export async function saveStores(input) {
       ...(old.get(s.id)?.invite ? { invite: old.get(s.id).invite } : {}), // 綁定 QR Code
     };
   });
+  // 同連鎖店同一個報價：有分店換了報價組，同連鎖店的其他分店跟著換
+  const switched = new Map();
+  for (const s of list) if (s.chain && old.has(s.id) && (old.get(s.id).groupId || '') !== s.groupId) switched.set(s.chain, s.groupId);
+  for (const s of list) if (switched.has(s.chain)) s.groupId = switched.get(s.chain);
   // 有訂單紀錄的店家不能刪：刪了它的應收帳款、對帳就看不到了。不合作了請取消「合作中」
   const kept0 = new Set(list.map((s) => s.id));
   for (const s of old.values()) {
@@ -494,7 +521,10 @@ export async function saveStores(input) {
 export async function importErpStores(input, { dry = true } = {}) {
   if (!Array.isArray(input) || !input.length) throw new UserError('Excel 裡沒有讀到客戶，請確認是 ERP 的客戶資料一覽表');
   if (input.length > 2000) throw new UserError('客戶太多了（最多 2000 家）');
-  const old = await getStores();
+  const [old, groups] = await Promise.all([getStores(), getPriceGroups()]);
+  // 新分店的報價組：跟同連鎖店其他分店一樣（同連鎖店同一個報價），沒有分店才用連鎖店自己的組
+  const chainGroup = Object.fromEntries(groups.filter((g) => g.chain).map((g) => [g.chain, g.id]));
+  for (const s of old) if (s.chain && s.groupId) chainGroup[s.chain] = s.groupId;
   const byCode = new Map(old.filter((s) => s.code).map((s) => [s.code, s]));
   const byName = new Map(old.filter((s) => !s.code).map((s) => [s.name, s]));
   const seen = new Set(), list = [];
@@ -513,7 +543,7 @@ export async function importErpStores(input, { dry = true } = {}) {
       list.push({ ...o, ...erp, phone: phone || o.phone || '' });
     } else {
       add++;
-      list.push({ id: stamp + i.toString(36), ...erp, route: 99, phone, address: '', on: true, groupId: '', pay: 'month', members: [] });
+      list.push({ id: stamp + i.toString(36), ...erp, route: 99, phone, address: '', on: true, groupId: chainGroup[erp.chain] || '', pay: 'month', members: [] });
     }
   }
   if (!list.length) throw new UserError('Excel 裡沒有讀到客戶，請確認是 ERP 的客戶資料一覽表');
