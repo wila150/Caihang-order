@@ -14,11 +14,11 @@
 //   storeAliases/{店}    { items: [{ text, pid }] }：只有這家店用的叫法（例如這家說「大的」是指某個品項）
 //   storeHistory/{店}    { items: { pid: 金額 }, at }：從 ERP「客戶產品銷售統計表」匯進來的，這家店以前買過什麼（AI 分粗細大小、叫貨頁「常用」）
 import crypto from 'node:crypto';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, FieldPath } from 'firebase-admin/firestore';
 import { PRESET, DEFAULT_PRODUCTS, CATEGORIES, DEFAULT_UNITS, UNITS_VERSION, UNITS_ADDED } from './config.js';
 import { qtyText, roundQty } from './qty.js';
 import { UserError } from './http.js';
-import { openDate, isDate, today, addonDate, getRulesNow, cutoffLabel, addonUntilLabel } from './dates.js';
+import { openDate, isDate, today, addDays, addonDate, getRulesNow, cutoffLabel, addonUntilLabel } from './dates.js';
 
 const db = () => getFirestore();
 const doc = (path) => db().doc(path);
@@ -421,6 +421,14 @@ export async function getDayCosts(date) {
 }
 
 // input：{ pid: 基本價 }；costInput：{ pid: 進價 }（選填，算毛利用）
+// 價格紀錄：這個品項最近 days 天每天的單價、進價（dayPrices/{日期} 每天一份，用文件 id 排日期）
+export async function priceHistory(pid, days = 60) {
+  const from = addDays(today(), -days);
+  const snap = await db().collection('dayPrices').where(FieldPath.documentId(), '>=', from).get();
+  return snap.docs.map((d) => ({ date: d.id, price: d.data().prices?.[pid], cost: d.data().costs?.[pid] }))
+    .filter((r) => isDate(r.date) && (r.price != null || r.cost != null)).sort((a, b) => a.date.localeCompare(b.date));
+}
+
 export async function setDayPrices(date, input, costInput = {}) {
   if (!isDate(date)) throw new UserError('配送日不正確');
   const prices = {};
@@ -501,6 +509,7 @@ export async function saveStores(input) {
       // ERP 客戶代號、連鎖店、聯絡人（匯入 ERP 客戶時帶進來）；畫面沒送就保留原本的
       ...Object.fromEntries(['code', 'chain', 'contact'].map((k) => [k, clean(s[k] === undefined ? old.get(s.id)?.[k] : s[k], 30)])),
       rep: clean(s.rep === undefined ? old.get(s.id)?.rep : s.rep, 4), // 負責送貨的業務編號（0～3），業務出貨明細表依這個分
+      payDay: Math.min(31, Math.max(0, Math.floor(Number(s.payDay === undefined ? old.get(s.id)?.payDay : s.payDay)) || 0)), // 收帳日（對帳頁設定）
       members: old.get(s.id)?.members || [], // 綁定的 LINE 帳號只能用開通／解除改
       ...(old.get(s.id)?.invite ? { invite: old.get(s.id).invite } : {}), // 綁定 QR Code
     };
@@ -988,7 +997,10 @@ export async function addPayment(month, sid, input, who) {
   const date = input.date ? String(input.date) : today();
   if (!isDate(date)) throw new UserError('收款日期不正確');
   const method = PAY_METHODS.includes(input.method) ? input.method : '現金';
-  const entry = { id: rid('p'), amount, date, method, note: clean(input.note, 40), by: clean(who, 40), at: new Date().toISOString(), ...(isDate(input.for) ? { for: input.for } : {}) }; // for：現結的店付的是哪一天的貨
+  // 支票：票號、兌現日（到期前後台會提醒，兌現了按「已兌現」）
+  if (method === '支票' && input.checkDue && !isDate(input.checkDue)) throw new UserError('兌現日不正確');
+  const check = method === '支票' ? { check: { no: clean(input.checkNo, 20), due: isDate(input.checkDue) ? input.checkDue : '', cashed: false } } : {};
+  const entry = { id: rid('p'), amount, date, method, note: clean(input.note, 40), by: clean(who, 40), at: new Date().toISOString(), ...(isDate(input.for) ? { for: input.for } : {}), ...check }; // for：現結的店付的是哪一天的貨
   const ref = doc('paid/' + month);
   await db().runTransaction(async (tx) => {
     const rec = (await tx.get(ref)).data()?.stores?.[sid];
@@ -996,6 +1008,29 @@ export async function addPayment(month, sid, input, who) {
     tx.set(ref, { stores: { [sid]: { list: [...(rec?.list || []), entry] } } }, { merge: true });
   });
   return getPaid(month);
+}
+
+// 支票兌現了（或退票改回來）
+export async function setCheckCashed(month, sid, id, cashed) {
+  const ref = doc('paid/' + month);
+  await db().runTransaction(async (tx) => {
+    const list = (await tx.get(ref)).data()?.stores?.[sid]?.list || [];
+    const p = list.find((x) => x.id === id);
+    if (!p?.check) throw new UserError('找不到這張支票', 404);
+    p.check.cashed = !!cashed;
+    tx.set(ref, { stores: { [sid]: { list } } }, { merge: true });
+  });
+  return getPaid(month);
+}
+
+// 收帳日：每月幾號跟這家店收錢（0＝沒設定）；那天後台首頁會提醒
+export async function setStorePayDay(sid, day) {
+  const n = Math.floor(Number(day)) || 0;
+  if (n < 0 || n > 31) throw new UserError('收帳日要填 1～31，月底填 31');
+  const ref = doc('stores/' + sid);
+  if (!(await ref.get()).exists) throw new UserError('找不到這家店', 404);
+  await ref.update({ payDay: n });
+  return getStores();
 }
 
 export async function removePayment(month, sid, id) {

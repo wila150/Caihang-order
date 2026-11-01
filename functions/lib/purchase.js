@@ -163,6 +163,13 @@ export async function setSupplierMode(supplier, pay) {
   if (!s) throw new UserError('請選廠商');
   await db().doc('settings/suppliers').set({ [s]: { pay: pay === 'cash' ? 'cash' : 'month' } }, { merge: true });
 }
+// 付款日：每月幾號付這家廠商（0＝沒設定）；那天後台首頁會提醒還欠多少
+export async function setSupplierPayDay(supplier, day) {
+  const s = clean(supplier, 20), n = Math.floor(Number(day)) || 0;
+  if (!s) throw new UserError('請選廠商');
+  if (n < 0 || n > 31) throw new UserError('付款日要填 1～31，月底填 31');
+  await db().doc('settings/suppliers').set({ [s]: { payDay: n } }, { merge: true });
+}
 export async function supplierLedger(month) {
   const [ps, ex, cats, paySnap, modes] = await Promise.all([listPurchases(month), listExpenses(month), getCats(), db().collection('supplierPays').where('month', '==', month).get(), getSupplierModes()]);
   const map = new Map();
@@ -200,7 +207,8 @@ export async function supplierLedger(month) {
     const cash = Object.entries(modes).find(([k]) => sameSup(k, r.supplier))?.[1]?.pay === 'cash';
     // 現付：進貨就付了，不用另外登記付款
     const paid = cash ? r.total : r.paid;
-    return { ...r, pay: cash ? 'cash' : 'month', paid, items: [...(r.items?.values() || [])].sort((a, b) => b.amount - a.amount), left: Math.round(r.total - paid) };
+    const payDay = Object.entries(modes).find(([k]) => sameSup(k, r.supplier))?.[1]?.payDay || 0;
+    return { ...r, pay: cash ? 'cash' : 'month', payDay, paid, items: [...(r.items?.values() || [])].sort((a, b) => b.amount - a.amount), left: Math.round(r.total - paid) };
   }).sort((a, b) => b.left - a.left || b.total - a.total || a.supplier.localeCompare(b.supplier, 'zh-Hant'));
 }
 

@@ -14,6 +14,7 @@ import { signSlipToken, sign } from '../lib/token.js';
 import { originOf } from '../lib/http.js';
 import * as report from '../lib/report.js';
 import { audit, listAudit } from '../lib/audit.js';
+import { todoList } from '../lib/todo.js';
 import { resetTestData } from '../lib/reset.js';
 import { applyDraft } from '../lib/aiorder.js';
 import { saveImage } from './img.js';
@@ -108,6 +109,16 @@ export async function GET(request) {
       return json({ thumb: await purchase.purchaseThumb(q.get('purchaseImg')) });
     }
     // 報表分頁另外載（要讀整個月的訂單）
+    // 首頁提醒：今天收帳的店、快到期的支票、今天要付的廠商（另外載，不拖慢主畫面）
+    if (q.get('todo')) {
+      need(me, 'bills');
+      return json(await todoList());
+    }
+    // 價格紀錄：一個品項最近 60 天每天的單價、進價
+    if (q.get('priceHistory')) {
+      need(me, 'prices');
+      return json({ history: await shop.priceHistory(String(q.get('priceHistory')).slice(0, 40)) });
+    }
     if (q.get('audit')) {
       need(me, 'users');
       return json({ audit: await listAudit() });
@@ -287,6 +298,10 @@ export async function POST(request) {
         need(me, 'prices');
         await purchase.setSupplierMode(b.supplier, b.pay);
         return json({ ok: true });
+      case 'supplierPayDay':
+        need(me, 'prices');
+        await purchase.setSupplierPayDay(b.supplier, b.day);
+        return json({ ok: true });
       // 電腦打的進貨單：一行一行（品名、數量、單位、單價、金額），合計自動算
       case 'purchaseTyped': {
         need(me, 'prices');
@@ -374,6 +389,17 @@ export async function POST(request) {
         await audit(me, 'payment', `${s.name} ${b.month} 收 $${Math.round(Number(b.amount)).toLocaleString('en-US')}（${b.method || '現金'}${b.checkNo ? ` 票號 ${b.checkNo}` : ''}）`);
         return json({ paid });
       }
+      case 'checkCashed': {
+        need(me, 'bills');
+        if (!isMonth(b.month)) throw new UserError('月份不正確');
+        const paid = await shop.setCheckCashed(b.month, b.storeId, String(b.id || ''), b.cashed !== false);
+        const sn = (await shop.getStores()).find((x) => x.id === b.storeId)?.name || b.storeId;
+        await audit(me, 'payment', `${sn} 支票${b.cashed !== false ? '已兌現' : '改回未兌現'}`);
+        return json({ paid });
+      }
+      case 'storePayDay':
+        need(me, 'bills');
+        return json({ stores: await shop.setStorePayDay(b.storeId, b.day) });
       case 'removePayment': {
         need(me, 'bills');
         if (!isMonth(b.month)) throw new UserError('月份不正確');

@@ -48,6 +48,14 @@ header.top p{margin:0;color:var(--muted);font-size:.9rem}
 .users .urow.off{opacity:.55}
 .srct{display:inline-block;font-size:.72rem;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--line);color:var(--muted);vertical-align:2px}
 .srct.line{background:#06C75522;color:#05a548}
+.todo{background:var(--surface);border:1px solid var(--line);border-left:4px solid #d4a017;border-radius:12px;padding:10px 14px;margin:0 0 14px}
+.todo h3{margin:0 0 6px;font-size:1rem}
+.todo ul{margin:0;padding-left:4px;list-style:none}
+.todo li{padding:5px 0;border-top:1px dashed var(--line)}
+.todo li:first-of-type{border-top:0}
+.chkf{display:contents}
+.linkbtn{border:0;background:none;padding:0 2px;color:var(--accent,#1F4D3A);text-decoration:underline;font-size:inherit;cursor:pointer}
+.chkf[hidden]{display:none}
 .sigphoto img{max-width:60%;max-height:240px;margin-top:6px;border-radius:6px}
 .auditlog{overflow-x:auto;max-height:420px;overflow-y:auto}
 .auditlog table{border-collapse:collapse;width:100%;font-size:.88rem;background:var(--surface)}
@@ -640,6 +648,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </div>
 
   <section id="board">
+    <div id="todoBox"></div>
     <h2>要準備的量</h2>
     <div class="bar"><button class="pbtn" data-pchoose="buy">🖨 列印…</button></div>
     <div class="board" id="boardBox"></div>
@@ -701,7 +710,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 110102</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 110103</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -973,8 +982,24 @@ const slipName=k=>SM()[sidOf(k)]?.name+(seqOf(k)>1?` 補單 #${seqOf(k)}`:'');
 const billQty=i=>i.ship??i.qty;
 const amount=o=>Math.round(o.items.reduce((a,i)=>a+billQty(i)*i.price,0));
 
+// 首頁提醒（有對帳權限的人）：另外載，不拖慢主畫面；一次載完就好，切回 App 重新載入時再更新
+let TODO=null;
+async function loadTodo(){
+  if(!may('bills')){$('todoBox').innerHTML='';return}
+  try{TODO=await api('GET',null,'?todo=1');renderTodo()}catch{}
+}
+function renderTodo(){
+  const T=TODO;if(!T)return;
+  const rows=[
+    ...T.collect.map(x=>`<li>💰 今天跟 <b>${esc(x.name)}</b> 收帳，還欠 <b>${money(x.left)}</b> <button class="pbtn sm" data-todobill="${x.storeId}">去對帳</button></li>`),
+    ...T.checks.map(x=>`<li>🧾 ${esc(x.name)} 的支票${x.no?` ${esc(x.no)}`:''} ${money(x.amount)}，${x.late?`<b class="unpaid">${md(x.due)} 已到期還沒兌現</b>`:`${x.due===T.date?'<b>今天</b>':md(x.due)} 兌現`} <button class="pbtn sm" data-cashed="${x.id}" data-store="${x.storeId}" data-month="${x.month}">已兌現</button></li>`),
+    ...T.pay.map(x=>`<li>🏭 今天付 <b>${esc(x.supplier)}</b>，還要付 <b>${money(x.left)}</b></li>`),
+  ];
+  $('todoBox').innerHTML=rows.length?`<div class="todo"><h3>今天要處理</h3><ul>${rows.join('')}</ul></div>`:'';
+}
 function renderAll(){
   $('meInfo').textContent=`${D.me.name}（${D.me.roleName}）`;
+  if(!TODO)loadTodo();
   fillPlist();
   const tabs={purchase:may('prices'),prices:may('prices'),bills:may('bills'),report:may('bills'),ai:may('editOrders'),admin:may('products'),stores:may('stores'),};
   document.querySelectorAll('nav.tabs button').forEach(b=>{b.hidden=tabs[b.dataset.tab]===false});
@@ -1076,6 +1101,24 @@ document.addEventListener('change',e=>{if(e.target.id==='puSup'){puSup=e.target.
 
 /* ---------- 單價 ---------- */
 let dpDraft={};
+// 價格走勢：最近 60 天每天的單價、進價（用列印預覽的視窗顯示，也可以印）
+async function showPriceHistory(pid){
+  const p=PM()[pid];let H;
+  try{H=(await api('GET',null,`?priceHistory=${encodeURIComponent(pid)}`)).history}catch(e){toast(e.message);return}
+  if(!H.length){toast(`${p?.name||'這個品項'}最近 60 天沒有價格紀錄`);return}
+  const W=640,Ht=220,pad=36,vals=H.flatMap(r=>[r.price,r.cost]).filter(v=>v!=null),lo=Math.min(...vals),hi=Math.max(...vals),span=hi-lo||1;
+  const x=i=>pad+(H.length<2?0:i*(W-pad*2)/(H.length-1)),y=v=>Ht-pad-(v-lo)/span*(Ht-pad*2);
+  const line=(k,c)=>{const pts=H.map((r,i)=>r[k]!=null?`${x(i).toFixed(1)},${y(r[k]).toFixed(1)}`:null).filter(Boolean);return pts.length?`<polyline points="${pts.join(' ')}" fill="none" stroke="${c}" stroke-width="2.5"/>${H.map((r,i)=>r[k]!=null?`<circle cx="${x(i).toFixed(1)}" cy="${y(r[k]).toFixed(1)}" r="3" fill="${c}"/>`:'').join('')}`:''};
+  const svg=`<svg viewBox="0 0 ${W} ${Ht}" width="100%" role="img" aria-label="${esc(p?.name||'')}最近的單價和進價走勢">
+    <line x1="${pad}" x2="${W-pad}" y1="${y(hi)}" y2="${y(hi)}" stroke="#ddd"/><line x1="${pad}" x2="${W-pad}" y1="${y(lo)}" y2="${y(lo)}" stroke="#ddd"/>
+    <text x="4" y="${y(hi)+4}" font-size="12" fill="#666">${hi}</text><text x="4" y="${y(lo)+4}" font-size="12" fill="#666">${lo}</text>
+    <text x="${pad}" y="${Ht-10}" font-size="12" fill="#666">${md(H[0].date)}</text><text x="${W-pad}" y="${Ht-10}" font-size="12" fill="#666" text-anchor="end">${md(H.at(-1).date)}</text>
+    ${line('cost','#b0752b')}${line('price','#1F4D3A')}</svg>`;
+  $('paper').innerHTML=`<div class="doc"><h3>${esc(p?.name||pid)}　價格走勢（每${esc(p?.unit||'單位')}）</h3>
+    <div class="meta"><span><b style="color:#1F4D3A">━ 單價</b>　<b style="color:#b0752b">━ 進價</b></span><span>最近 60 天，有填價格的 ${H.length} 天</span></div>${svg}
+    <table><thead><tr><th>日期</th><th class="n">單價</th><th class="n">進價</th><th class="n">毛利</th></tr></thead><tbody>${H.slice().reverse().map(r=>`<tr><td>${ymdSlash(r.date)}</td><td class="n">${r.price??''}</td><td class="n">${r.cost??''}</td><td class="n">${r.price!=null&&r.cost!=null?+(r.price-r.cost).toFixed(2):''}</td></tr>`).join('')}</tbody></table></div>`;
+  $('pv').classList.add('on');setPaper('a4');
+}
 function renderPrices(){
   const T=totals(),pm=PM();
   dpDraft={};dcDraft={};
@@ -1090,7 +1133,7 @@ function renderPrices(){
     const cost=D.dayCosts?.[t.pid]??pm[t.pid]?.cost??'';
     if(cost!=='')dcDraft[t.pid]=cost;
     const c=pm[t.pid]?.cat||'其他';const head=c!==last?`<div class="acat">${esc(c)}</div>`:'';last=c;
-    return `${head}<div class="prow2 ${set?'':'todo'}"><span class="nm">${esc(t.name)}<small>${set?'已確認':'沿用上次的價格，還沒確認'}</small></span>
+    return `${head}<div class="prow2 ${set?'':'todo'}"><span class="nm">${esc(t.name)}<small>${set?'已確認':'沿用上次的價格，還沒確認'} <button class="linkbtn" data-phist="${t.pid}">走勢</button></small></span>
       <span class="q">共 ${esc(qtyText(t.qty,t.unit))}・${t.rows.length} 家</span>
       <span class="pin"><small>售</small>$<input type="number" inputmode="numeric" min="0" data-dp="${t.pid}" value="${cur}" aria-label="${esc(t.name)}每${esc(t.unit)}基本價"><small>/${esc(t.unit)}</small></span>
       <span class="pin cost"><small>進</small>$<input type="number" inputmode="decimal" min="0" step="any" data-dc="${t.pid}" value="${cost}" placeholder="—" aria-label="${esc(t.name)}每${esc(t.unit)}進價"></span></div>`;
@@ -1227,7 +1270,7 @@ function renderLedger(){
   }
   const head=`<div class="bar"><button class="pbtn" data-lgsel="">← 所有廠商</button>${r?`<button class="pbtn" data-lgprint="1">🖨 列印這家的對帳單</button>`:''}</div><h2 style="margin:6px 2px">${esc(lgSel)}　<small style="font-weight:400;color:var(--muted)">${+m} 月</small></h2>`;
   if(!r){$('puBox').innerHTML=head+`<div class="empty">${+m} 月沒有「${esc(lgSel)}」的進貨單或付款。</div>`+manual;return}
-  const mode=`<div class="payseg" role="group" aria-label="付款方式"><span>付款方式</span><button data-spmode="month" aria-pressed="${r.pay!=='cash'}">月結（後台登記付款）</button><button data-spmode="cash" aria-pressed="${r.pay==='cash'}">現付（進貨就算付了）</button></div>`;
+  const mode=`<div class="payseg" role="group" aria-label="付款方式"><span>付款方式</span><button data-spmode="month" aria-pressed="${r.pay!=='cash'}">月結（後台登記付款）</button><button data-spmode="cash" aria-pressed="${r.pay==='cash'}">現付（進貨就算付了）</button>${r.pay!=='cash'?`<label style="display:flex;gap:4px;align-items:center;margin-left:8px">付款日 每月<input type="number" min="0" max="31" inputmode="numeric" id="spPayDay" value="${r.payDay||''}" placeholder="—" style="width:3.5em" aria-label="每月幾號付這家">號</label>`:''}</div>`;
   $('puBox').innerHTML=head+mode+`<div class="billsum" style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 2px 8px"><span>進貨 ${r.invoices.length} 筆 <b>${n0p(r.total)}</b></span><span class="paid">已付 ${n0p(r.paid)}</span><span class="${r.left>0?'unpaid':'paid'}">${r.left>0?`還要付 <b>${n0p(r.left)}</b>`:r.left<0?`多付 ${n0p(-r.left)}`:'付清了'}</span>${r.over?`<span class="unpaid">其中上游多算 ${n0p(r.over)}</span>`:''}</div>
     <div class="bill"><div class="pu-d" style="padding-top:10px">${lgDetail(r)}
     ${r.pay==='cash'?'<p class="sub">這家是現付，進貨就算付了，不用登記付款。</p>':`<div class="pedrow"><label>付款日期<input type="date" id="spDate" value="${D.today}"></label><label>這次付<input id="spAmt" inputmode="decimal" value="${r.left>0?r.left:''}"></label><label>備註<input id="spNote" placeholder="例如 現金、匯款"></label></div>
@@ -1526,7 +1569,7 @@ function renderBills(){
         const got=P.list.some(p=>p.for===r.date);
         const act=got?'<em class="paid">✓ 已收</em>':!P.left?'':`<button class="pbtn sm" data-payday="${s.id}" data-date="${r.date}" data-amt="${r.amount}">${s.pay==='cash'?'收現金':'收這天'}</button>`;
         return `<div class="row"><span>${dlabel(r.date)}</span><span>${money(r.amount)}${act?' '+act:''}</span></div>`}).join('')||'<div class="row"><span>這個月沒有送貨</span></div>'}</div>
-      <div class="payseg" role="group" aria-label="付款方式"><span>付款方式</span><button data-setpay="${s.id}" data-pay="month" aria-pressed="${s.pay!=='cash'}">月結</button><button data-setpay="${s.id}" data-pay="cash" aria-pressed="${s.pay==='cash'}">現結</button></div>
+      <div class="payseg" role="group" aria-label="付款方式"><span>付款方式</span><button data-setpay="${s.id}" data-pay="month" aria-pressed="${s.pay!=='cash'}">月結</button><button data-setpay="${s.id}" data-pay="cash" aria-pressed="${s.pay==='cash'}">現結</button>${s.pay!=='cash'?`<label style="display:flex;gap:4px;align-items:center;margin-left:8px">收帳日 每月<input type="number" min="0" max="31" inputmode="numeric" data-payday="${s.id}" value="${s.payDay||''}" placeholder="—" style="width:3.5em" aria-label="${esc(s.name)} 每月幾號收帳">號</label>`:''}</div>
       <div class="acts">${rows.length?`<button class="send" data-send="${s.id}">用 LINE 傳對帳單</button><button class="pbtn" data-print="stmt" data-store="${s.id}">列印對帳單</button>`:''}</div>
       ${total||P.list.length?payBox(s,P):''}</div>`:''}</div>`;
   }).join('')+(!q&&idle&&stores.length?`<div class="slipnone">另外 ${idle} 家這個月沒送貨，沒列出來；要看哪家在上面「找店家」。</div>`:'')||(q?'<div class="empty">找不到這家店</div>':'<div class="empty">這個月沒有送貨紀錄</div>');
@@ -1537,11 +1580,12 @@ function payBox(s,P){
   if(P.legacy)return `<div class="pays"><h4><span>收款</span><span class="paid">已整月收清</span></h4>
     <div class="acts"><button class="pbtn" data-unpaid="${s.id}">取消收清（改記明細）</button></div></div>`;
   return `<div class="pays"><h4><span>收款 ${P.list.length?P.list.length+' 筆':''}</span><span class="${P.left?'unpaid':'paid'}">${P.left?'還差 '+money(P.left):'已收清'}</span></h4>
-    ${P.list.map(p=>`<div class="pay"><span>${md(p.date)}</span><em>${esc(p.method)}${p.note?'・'+esc(p.note):''}${p.by?'・'+esc(p.by):''}</em><b>${money(p.amount)}</b><button class="x" data-paydel="${p.id}" data-store="${s.id}" aria-label="刪除這筆收款">✕</button></div>`).join('')}
+    ${P.list.map(p=>`<div class="pay"><span>${md(p.date)}</span><em>${esc(p.method)}${p.check?`・${p.check.no?esc(p.check.no)+' ':''}${p.check.due?md(p.check.due)+' 兌現':''}${p.check.cashed?' ✓':` <button class="pbtn sm" data-cashed="${p.id}" data-store="${s.id}" data-month="${D.month}">已兌現</button>`}`:''}${p.note?'・'+esc(p.note):''}${p.by?'・'+esc(p.by):''}</em><b>${money(p.amount)}</b><button class="x" data-paydel="${p.id}" data-store="${s.id}" aria-label="刪除這筆收款">✕</button></div>`).join('')}
     ${P.left?`<div class="payf" data-payf="${s.id}">
       <input type="number" inputmode="numeric" min="1" step="1" name="amount" value="${P.left}" aria-label="收款金額">
-      <select name="method" aria-label="收款方式">${PAYM.map(x=>`<option>${x}</option>`).join('')}</select>
+      <select name="method" aria-label="收款方式" data-paymethod="${s.id}">${PAYM.map(x=>`<option>${x}</option>`).join('')}</select>
       <input type="date" name="date" value="${D.today}" aria-label="收款日期">
+      <span class="chkf" hidden><input name="checkNo" maxlength="20" placeholder="支票號碼" aria-label="支票號碼"><label style="display:flex;gap:4px;align-items:center;white-space:nowrap">兌現日<input type="date" name="checkDue" aria-label="支票兌現日"></label></span>
       <input name="note" maxlength="40" placeholder="備註（選填）" aria-label="備註">
       <div class="full"><button class="send" data-payadd="${s.id}">記一筆收款</button>${P.list.length||s.pay!=='cash'?`<button class="pbtn" data-payall="${s.id}">全部收清 ${money(P.left)}</button>`:''}</div></div>`:''}</div>`;
 }
@@ -2495,8 +2539,14 @@ document.addEventListener('click',async e=>{
     if(!(amount>0)){toast('請填收款金額');return}
     if(amount>P.left&&!confirm(`收 ${money(amount)} 比還差的 ${money(P.left)} 多，確定嗎？`))return;
     b.disabled=true;
-    try{const j=await api('POST',{action:'payment',month:D.month,storeId:sid,amount,method:v('method'),date:v('date'),note:v('note')});D.paid=j.paid;renderBills();toast(`已記 ${SM()[sid].name} 收款 ${money(amount)}`)}catch(err){toast(err.message);b.disabled=false}
+    if(v('method')==='支票'&&!v('checkDue')&&!confirm('沒填兌現日，到期就不會提醒。確定嗎？')){b.disabled=false;return}
+    try{const j=await api('POST',{action:'payment',month:D.month,storeId:sid,amount,method:v('method'),date:v('date'),note:v('note'),checkNo:v('checkNo'),checkDue:v('checkDue')});D.paid=j.paid;renderBills();toast(`已記 ${SM()[sid].name} 收款 ${money(amount)}`)}catch(err){toast(err.message);b.disabled=false}
   }
+  if(b.dataset.phist){showPriceHistory(b.dataset.phist);return}
+  if(b.dataset.cashed){b.disabled=true;
+    try{const j=await api('POST',{action:'checkCashed',month:b.dataset.month,storeId:b.dataset.store,id:b.dataset.cashed,cashed:true});if(b.dataset.month===D.month){D.paid=j.paid;renderBills()}TODO=null;loadTodo();toast('支票已兌現')}catch(err){toast(err.message);b.disabled=false}
+    return}
+  if(b.dataset.todobill){showTab('bills');$('sqBills').value=SM()[b.dataset.todobill]?.name||'';openBill=b.dataset.todobill;renderBills();return}
   if(b.dataset.paydel){
     const sid=b.dataset.store,p=D.paid[sid]?.list?.find(x=>x.id===b.dataset.paydel);if(!p)return;
     if(!confirm(`刪除 ${md(p.date)} ${p.method} ${money(p.amount)} 這筆收款？`))return;
@@ -2636,6 +2686,14 @@ document.addEventListener('input',e=>{
   if(t.dataset.sf!=null){const s=S[+t.dataset.i],f=t.dataset.sf;s[f]=f==='on'?t.checked:f==='route'?(+t.value||0):t.value;sDirty=true;$('saveS').disabled=false;$('sDirty').textContent='有尚未儲存的修改'}
 });
 document.addEventListener('change',async e=>{
+  // 收款方式選支票：多出票號、兌現日
+  if(e.target.dataset.paymethod){const box=e.target.closest('.payf')?.querySelector('.chkf');if(box)box.hidden=e.target.value!=='支票';return}
+  if(e.target.dataset.payday!=null){const sid=e.target.dataset.payday;
+    try{const j=await api('POST',{action:'storePayDay',storeId:sid,day:e.target.value});D.stores=j.stores;S=structuredClone(D.stores);toast(+e.target.value?`${SM()[sid].name} 每月 ${+e.target.value} 號收帳，那天首頁會提醒`:'已取消收帳日');TODO=null;loadTodo()}catch(err){toast(err.message)}
+    return}
+  if(e.target.id==='spPayDay'){
+    try{await api('POST',{action:'supplierPayDay',supplier:lgSel,day:e.target.value});toast(+e.target.value?`每月 ${+e.target.value} 號付 ${lgSel}，那天首頁會提醒`:'已取消付款日');TODO=null;loadTodo()}catch(err){toast(err.message)}
+    return}
   if(e.target.dataset?.ascope!=null){aScope[+e.target.dataset.ascope]=e.target.value;return}
   if(e.target.dataset?.aeq!=null){const i=AE.items[+e.target.dataset.aeq],q=parseQty(e.target.value,i.unit);if(q>=0&&!isNaN(q))i.qty=q;else toast('數量看不懂');renderAiEd();return}
   const t=e.target;
