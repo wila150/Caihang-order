@@ -195,7 +195,7 @@ export async function supplierLedger(month) {
   // 記帳的進貨（LINE「進貨 七美 12000」）：記進這家的帳；進貨單按過「記成進貨支出」的不要重複算
   for (const e of ex.filter((x) => isPurchase(x.cat, cats) && x.payee && x.source !== 'purchase')) {
     const r = row(e.payee);
-    r.invoices.push({ id: 'e:' + e.id, date: e.date, total: e.amount, diff: 0, fromExpense: true, note: [e.item !== '進貨' && e.item, e.note, e.source === 'line' ? 'LINE 記帳' : '記帳', e.by].filter(Boolean).join('・'), lines: [] });
+    r.invoices.push({ id: 'e:' + e.id, date: e.date, total: e.amount, diff: 0, fromExpense: true, note: [e.item !== '進貨' && e.item, e.note, e.raw && `原文「${e.raw}」`, e.source === 'line' ? 'LINE 記帳' : '記帳', e.by].filter(Boolean).join('・'), lines: [] });
     r.total += e.amount;
   }
   for (const d of paySnap.docs) {

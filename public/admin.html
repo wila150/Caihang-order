@@ -712,7 +712,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 110106</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 110107</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -1875,7 +1875,7 @@ function expHTML(){
       <input name="payee" maxlength="20" value="${esc(e.payee||'')}" placeholder="付給誰（選填）" aria-label="付給誰">
       <input name="note" maxlength="40" value="${esc(e.note||'')}" placeholder="備註（選填）" aria-label="備註">
       <div class="expbtns"><button type="button" class="pbtn" data-expcancel="1">取消</button><button type="button" class="send" data-expsave="${e.id}">儲存</button></div></form>`;
-    return h+`<div class="exp"><span>${inSup?`<small>${md(e.date)}</small> `:''}${esc(e.item)}<em>${[e.buy?.cost!=null&&`進價 $${e.buy.cost}/${e.buy.unit}`,!inSup&&e.payee&&'付給 '+e.payee,e.note,e.source==='line'?'LINE':'',e.by].filter(Boolean).map(esc).join('・')}</em></span>
+    return h+`<div class="exp"><span>${inSup?`<small>${md(e.date)}</small> `:''}${esc(e.item)}<em>${[e.buy?.cost!=null&&`進價 $${e.buy.cost}/${e.buy.unit}`,!inSup&&e.payee&&'付給 '+e.payee,e.note,e.raw&&`原文「${e.raw}」`,e.source==='line'?'LINE':'',e.by].filter(Boolean).map(esc).join('・')}</em></span>
     <select data-expcat="${e.id}" aria-label="${esc(e.item)} 分類">${opt(e.cat)}</select><b>${money(e.amount)}</b><span class="expact"><button class="x" data-expedit="${e.id}" aria-label="編輯 ${esc(e.item)}">✎</button><button class="x" data-expdel="${e.id}" aria-label="刪除 ${esc(e.item)}">✕</button></span></div>`};
   const rows=L.filter(e=>!supRow(e)).slice().reverse().map(e=>expRow(e,false)).join('');
   const supHTML=SUPHTML();

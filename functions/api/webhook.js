@@ -370,9 +370,9 @@ async function expenseChat({ said, pb, action, store, uid, pick }) {
     if (parsed.filter(([, a, p]) => a || p).length >= 2 || (prefixed && parsed.some(([, a, p]) => a || p))) {
       const by = (await displayName(uid)) || '老闆 LINE';
       const saved = [];
-      for (const [, a, p] of parsed.filter(([, a, p]) => a || p).slice(0, 20)) {
+      for (const [raw, a, p] of parsed.filter(([, a, p]) => a || p).slice(0, 20)) {
         if (a) { const x = await paySupplier(a, by); saved.push({ id: 'p:' + x.id, text: `💰 已付 ${x.supplier} ${money(x.amount)}`, amount: x.amount }); }
-        else { const e = await ex.addExpense(p, { by, source: 'line' }); saved.push({ id: e.id, text: `・${e.payee ? `進貨 ${e.payee}` : e.cat} ${e.item !== '進貨' && e.item !== e.cat ? e.item + ' ' : ''}${money(e.amount)}`, amount: e.amount }); }
+        else { const e = await ex.addExpense({ ...p, raw }, { by, source: 'line' }); saved.push({ id: e.id, text: `・${e.payee ? `進貨 ${e.payee}` : e.cat} ${e.item !== '進貨' && e.item !== e.cat ? e.item + ' ' : ''}${money(e.amount)}`, amount: e.amount }); }
       }
       const bad = parsed.filter(([, a, p]) => !a && !p).map(([x]) => x);
       return {
@@ -386,7 +386,7 @@ async function expenseChat({ said, pb, action, store, uid, pick }) {
   const p = ex.parseExpenseText(said) || (pick && /^[$＄]?\s*\d[\d,]*(?:\.\d+)?(?:\s*[+＋]\s*\d[\d,]*(?:\.\d+)?)*(?:\s*[=＝]\s*\d[\d,]*)?\s*(元|塊)?$/.test(said) ? ex.parseExpenseText(`${pick} ${said}`) : null);
   if (!p) return prefixed || pick ? { type: 'text', text: `看不懂金額。${HOWTO}` } : null;
   if (pick) { p.cat = pick; await modeRef(uid).set({ pick: null }, { merge: true }); }
-  const e = await ex.addExpense(p, { by: (await displayName(uid)) || '老闆 LINE', source: 'line' });
+  const e = await ex.addExpense({ ...p, raw: said }, { by: (await displayName(uid)) || '老闆 LINE', source: 'line' });
   const r = savedReply(e, await ex.getCats());
   // 有數量的進貨（高麗菜20斤）：順便回這樣還要買多少
   if (e.buy) {
