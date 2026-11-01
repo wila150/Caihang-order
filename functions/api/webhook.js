@@ -245,6 +245,7 @@ function savedReply(e, cats, head = '✅ 已記帳') {
 }
 
 // 老闆的 LINE：老闆選單（記帳）和店家選單（測試叫貨）可以切換；在老闆選單時打「品名 金額」就是記帳
+const STORE_MENU = /^(我要叫貨|拍照叫貨|照上次叫|我的訂單|我的帳款|回報問題)$/;
 const modeRef = (uid) => getFirestore().doc('adminMode/' + uid);
 async function bossChat({ said, pb, action, store, uid, e, origin }) {
   if (action === 'menu') {
@@ -268,7 +269,12 @@ async function bossChat({ said, pb, action, store, uid, e, origin }) {
     return false;
   }
   // 按「記帳」選了分類：10 分鐘內打的「品名 金額」記到這一類
-  const pick = m.pick && Date.now() - m.pick.at < 10 * 60e3 ? m.pick.cat : '';
+  let pick = m.pick && Date.now() - m.pick.at < 10 * 60e3 ? m.pick.cat : '';
+  // 選了分類後改按店家選單（我要叫貨、回報問題…）或打叫貨的話：不是要記帳，取消剛剛選的分類
+  if (pick && (STORE_MENU.test(said) || /叫貨|叫菜|訂貨|下單/.test(said) || ['order', 'mine', 'photo'].includes(action))) {
+    pick = '';
+    await modeRef(uid).set({ pick: null }, { merge: true });
+  }
   return expenseChat({ said, pb, action, store: (m.mode || 'boss') === 'store' ? store : null, uid, pick });
 }
 
