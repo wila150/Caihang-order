@@ -156,11 +156,14 @@ export function slipMessage(store, date, order, billQty) {
       ],
     };
   });
-  const slip = order.seq > 1 ? ` 補單 #${order.seq}` : '';
-  return flex(`${md(date)}${slip} 出貨單`, bubble(`${md(date)} 出貨單${slip}`, `${store.name}・${label(date)}`, [
+  // 補送、換貨不另收費
+  const free = { resend: '補送', exchange: '換貨' }[order.free];
+  const slip = free ? '' : order.seq > 1 ? ` 補單 #${order.seq}` : '';
+  const title = `${md(date)} ${free ? free + '單' : '出貨單'}${slip}`;
+  return flex(title, bubble(title, `${store.name}・${label(date)}`, [
     ...body,
     sep,
-    text('單價確認後，金額會在收據或對帳單上通知您。', { size: 'xxs', color: C.muted }),
+    text(free ? `這張是${free}，不另外收費。` : '單價確認後，金額會在收據或對帳單上通知您。', { size: 'xxs', color: C.muted }),
   ]));
 }
 

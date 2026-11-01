@@ -235,9 +235,23 @@ export async function POST(request) {
       case 'newSlip': {
         need(me, 'editOrders');
         await store();
-        const r = await shop.newSlip(b.storeId, b.date, b.pid, b.qty, me.name);
+        const r = await shop.newSlip(b.storeId, b.date, b.pid, b.qty, me.name, String(b.free || ''));
         if (!can(me, 'prices')) r.order.items = r.order.items.map(noPriceItem);
         return json(r);
+      }
+      // 店家回報 → 開免費的補送／換貨單（送哪天、數量由後台選），回報標成已處理
+      case 'issueSlip': {
+        need(me, 'editOrders');
+        const ref = getFirestore().doc('issues/' + String(b.id || '').replace(/[^\w-]/g, '_'));
+        const it = (await ref.get()).data();
+        if (!it) throw new UserError('找不到這筆回報', 404);
+        if (!shop.FREE_KINDS[b.free]) throw new UserError('請選補送或換貨');
+        if (!isDate(b.date)) throw new UserError('送貨日期不正確');
+        const pid = b.pid || (it.pid !== '*' ? it.pid : '');
+        if (!pid) throw new UserError('請選要補送的品項');
+        const r = await shop.saveNewSlip(it.storeId, b.date, [{ pid, qty: b.qty }], '後台', `${me.name}・${shop.FREE_KINDS[b.free]}（店家回報：${it.type}）`, { free: b.free });
+        await ref.update({ status: 'done', doneBy: me.name || me.email, doneAt: new Date().toISOString(), resolved: { free: b.free, date: b.date, seq: r.order.seq } });
+        return json({ issues: await openIssues(), seq: r.order.seq });
       }
       case 'dayPrices': {
         need(me, 'prices');
@@ -425,7 +439,7 @@ export async function POST(request) {
         const orders = await shop.ordersOfDate(b.date);
         // 當天單價沒填完不能傳收據（不然收據用的是上次的價格，之後填了正式價格就對不上）
         const dp = await shop.getDayPrices(b.date);
-        const missing = [...new Set(orders.filter((o) => stores.some((s) => s.id === o.storeId)).flatMap((o) => o.items).filter((i) => !(i.pid in dp)).map((i) => i.name))];
+        const missing = [...new Set(orders.filter((o) => !o.free && stores.some((s) => s.id === o.storeId)).flatMap((o) => o.items).filter((i) => !(i.pid in dp)).map((i) => i.name))];
         // 後台確認過「先傳出貨單」（noPrice）才改傳不含金額的出貨單，單價填好後再傳收據
         const slipOnly = missing.length > 0 && !!b.noPrice;
         if (missing.length && !slipOnly) throw new UserError(`${b.date.slice(5).replace('-', '/')} 還有 ${missing.length} 個品項沒填單價（${missing.slice(0, 3).join('、')}${missing.length > 3 ? '…' : ''}），先到「單價」頁填完再傳收據`);
@@ -434,7 +448,8 @@ export async function POST(request) {
           const mine = orders.filter((x) => x.storeId === s.id).sort((a, c) => (a.seq || 1) - (c.seq || 1)).slice(0, 5);
           if (!mine.length) return Promise.reject(new Error('沒有訂單'));
           if (slipOnly) return pushToStore(s, mine.map((o) => slipMessage(s, b.date, o, shop.billQty)));
-          return shop.monthSoFar(s.id, b.date).then((soFar) => pushToStore(s, mine.map((o) => receiptMessage(s, b.date, o, shop.billQty, soFar))));
+          // 補送、換貨不收費：傳出貨單（沒有金額）就好
+          return shop.monthSoFar(s.id, b.date).then((soFar) => pushToStore(s, mine.map((o) => (o.free ? slipMessage(s, b.date, o, shop.billQty) : receiptMessage(s, b.date, o, shop.billQty, soFar)))));
         }));
         const at = new Date().toISOString();
         await Promise.all(orders.filter((o) => stores.some((s, i) => s.id === o.storeId && res[i].status === 'fulfilled'))

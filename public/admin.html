@@ -48,6 +48,8 @@ header.top p{margin:0;color:var(--muted);font-size:.9rem}
 .users .urow.off{opacity:.55}
 .srct{display:inline-block;font-size:.72rem;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--line);color:var(--muted);vertical-align:2px}
 .srct.line{background:#06C75522;color:#05a548}
+.suppno.free{background:#06C75522;color:#05a548}
+.nskind{display:flex;gap:12px;flex-wrap:wrap;margin:6px 0;font-size:.9rem}
 .todo{background:var(--surface);border:1px solid var(--line);border-left:4px solid #d4a017;border-radius:12px;padding:10px 14px;margin:0 0 14px}
 .todo h3{margin:0 0 6px;font-size:1rem}
 .todo ul{margin:0;padding-left:4px;list-style:none}
@@ -710,7 +712,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 110104</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 110105</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -966,11 +968,14 @@ async function load(){
   if(!sDirty)S=structuredClone(D.stores);
   renderAll();
 }
-const PM=()=>Object.fromEntries(D.products.map(p=>[p.id,p]));
-const SM=()=>Object.fromEntries(D.stores.map(s=>[s.id,s]));
+// 品項、店家對照表：每次載入資料（D.products／D.stores 換成新陣列）才重建一次。
+// 以前每次排序比較都重建一份 2 千多筆的表，品項多的時候首頁要卡好幾秒
+let _pmOf=null,_pm={},_pi=new Map(),_smOf=null,_sm={};
+const PM=()=>{if(_pmOf!==D.products){_pmOf=D.products;_pm=Object.fromEntries(D.products.map(p=>[p.id,p]));_pi=new Map(D.products.map((p,i)=>[p.id,i]))}return _pm};
+const SM=()=>{if(_smOf!==D.stores){_smOf=D.stores;_sm=Object.fromEntries(D.stores.map(s=>[s.id,s]))}return _sm};
 const activeStores=()=>D.stores.filter(s=>s.on);
 const catIdx=pid=>{const p=PM()[pid];return p?D.categories.indexOf(p.cat):99};
-const prodIdx=pid=>D.products.findIndex(p=>p.id===pid);
+const prodIdx=pid=>{PM();return _pi.get(pid)??-1};
 const sortItems=items=>[...items].sort((a,b)=>catIdx(a.pid)-catIdx(b.pid)||prodIdx(a.pid)-prodIdx(b.pid));
 // 出貨單的代號：原本的單是店家 id，配送單確認後開的補單是「店家id-2」「-3」…
 const okey=o=>o.storeId+((o.seq||1)>1?'-'+o.seq:'');
@@ -1163,7 +1168,7 @@ function slipActs(s,o,k){
     ${!sig&&may('deleteOrders')?`<button class="delslip" data-delslip="${k}">刪除這張單</button>`:''}</div>`;
 }
 // 這些店當天還沒填單價的品項
-const missPrices=ids=>[...new Set(D.orders.filter(o=>ids.includes(o.storeId)).flatMap(o=>o.items).filter(i=>!(i.pid in D.dayPrices)).map(i=>i.name))];
+const missPrices=ids=>[...new Set(D.orders.filter(o=>!o.free&&ids.includes(o.storeId)).flatMap(o=>o.items).filter(i=>!(i.pid in D.dayPrices)).map(i=>i.name))];
 async function sendReceipts(ids){
   const n=ids.length;if(!n){toast('沒有可以傳的店家（要有訂單、綁定 LINE）');return}
   // 單價沒填完不傳收據（會用上次的價格，之後填了正式價格就對不上），改成先傳不含金額的出貨單
@@ -1452,7 +1457,7 @@ function renderIssues(){
     <div><b>${esc(x.storeName)}</b>　${md(x.date)}${x.seq>1?` 補單${x.seq}`:''}　${esc(x.name)}：<span class="ityp">${esc(x.type)}</span><small>${hm(x.at)}</small></div>
     ${(x.note||[]).length?`<div class="inote">${x.note.map(esc).join('<br>')}</div>`:''}
     ${(x.photos||[]).length?`<div class="iph">${x.photos.map(u=>`<img src="${esc(u)}" data-zoom="1" alt="店家拍的照片">`).join('')}</div>`:''}
-    ${may('editOrders')?`<div class="acts"><button class="pbtn" data-issreply="${x.id}">回覆店家並處理</button><button class="pbtn" data-issdone="${x.id}">已處理</button></div>`:''}</div>`).join('')}</div>`:'';
+    ${may('editOrders')?`<div class="acts">${x.pid&&x.pid!=='*'?`<button class="pbtn" data-issfree="resend" data-iss="${x.id}">開補送單</button><button class="pbtn" data-issfree="exchange" data-iss="${x.id}">開換貨單</button>`:''}<button class="pbtn" data-issreply="${x.id}">回覆店家並處理</button><button class="pbtn" data-issdone="${x.id}">已處理</button></div>`:''}</div>`).join('')}</div>`:'';
 }
 // 叫貨來源：LINE（店家自己叫、AI 讀訊息）／電話（後台幫忙開的）
 const srcTag=o=>o.source==='phone'?' <span class="srct">電話</span>':o.source==='line'?' <span class="srct line">LINE</span>':'';
@@ -1476,8 +1481,8 @@ function renderSlips(){
         <span class="stepper"><button data-step="-1" data-sid="${k}" data-pid="${i.pid}" aria-label="${esc(i.name)}實出減少">−</button><input type="text" inputmode="decimal" ${ro?'readonly':''} value="${esc(editText(q,i.unit))}" data-sqin="${k}" data-pid="${i.pid}" aria-label="${esc(i.name)}實出量，可以直接打">${/斤|兩/.test(editText(q,i.unit))?'':`<span class="u">${esc(i.unit)}</span>`}<button data-step="1" data-sid="${k}" data-pid="${i.pid}" aria-label="${esc(i.name)}實出增加">+</button></span></div>`;
       }).join('');
       // 補單跟原本的單分開：最後一張下面隨時可以另開補單
-      const extra=(!locked&&idx===0?proxyBtn(s.id):'')+(!locked?addRow(k,`幫${esc(s.name)}加品項`,'加入','data-additem'):'')+(last&&may('editOrders')?`<details class="newslip" ${locked?'open':''}><summary>＋ 開補單</summary>${addRow(s.id,`幫${esc(s.name)}開補單`,'開補單','data-newslip')}</details>`:'');
-      return `<div class="slip ${locked?'locked':''} ${(o.seq||1)>1?'supp':''}"><div class="slip-h"><b>${esc(s.name)}${(o.seq||1)>1||o.addon?` <span class="suppno">${o.addon?'店家補單':'補單'} #${o.seq||1}</span>`:''}${ptag(k)}${srcTag(o)}</b><span class="stop">第 ${s.route} 站</span></div>${items}
+      const extra=(!locked&&idx===0?proxyBtn(s.id):'')+(!locked?addRow(k,`幫${esc(s.name)}加品項`,'加入','data-additem'):'')+(last&&may('editOrders')?`<details class="newslip" ${locked?'open':''}><summary>＋ 開補單／補送／換貨</summary><div class="nskind" role="radiogroup" aria-label="開哪一種單"><label><input type="radio" name="nsk-${s.id}" value="" checked> 補單（收費）</label><label><input type="radio" name="nsk-${s.id}" value="resend"> 補送（免費）</label><label><input type="radio" name="nsk-${s.id}" value="exchange"> 換貨（免費）</label></div>${addRow(s.id,`幫${esc(s.name)}開補單`,'開單','data-newslip')}</details>`:'');
+      return `<div class="slip ${locked?'locked':''} ${(o.seq||1)>1?'supp':''}"><div class="slip-h"><b>${esc(s.name)}${o.free?` <span class="suppno free">${FREE_N[o.free]}（免費）</span>`:(o.seq||1)>1||o.addon?` <span class="suppno">${o.addon?'店家補單':'補單'} #${o.seq||1}</span>`:''}${ptag(k)}${srcTag(o)}</b><span class="stop">第 ${s.route} 站</span></div>${items}
         ${extra}${slipActs(s,o,k)}</div>`;
     });
   }).join('')+(q?(stores.length?'':'<div class="slipnone">找不到這家店</div>'):noneN?`<div class="slipnone">還有 ${noneN} 家還沒叫貨。要幫哪家電話叫貨或加品項，在上面「找店家」打店名。</div>`:'')||'<div class="empty">還沒有店家，到「店家」新增。</div>';
@@ -1513,13 +1518,14 @@ async function markPrinted(){
 
 // undo=false 是按「復原」時用的，不再跳復原
 // mode：'ship' 改實出量（出貨單的框）；'qty' 改叫貨量（加品項）
-async function setQty(k,pid,qty,undo=true,mode='qty'){
+const FREE_N={resend:'補送',exchange:'換貨'};
+async function setQty(k,pid,qty,undo=true,mode='qty',free=''){
   const sid=sidOf(k),seq=seqOf(k);
   const old=orderOf(k)?.items.find(i=>i.pid===pid);
   const pick=i=>i?(mode==='ship'?billQty(i):i.qty):0;
   const before=pick(old);
   try{
-    const r=await api('POST',mode==='ship'?{action:'setShip',date:D.date,storeId:sid,seq,pid,ship:qty}:mode==='new'?{action:'newSlip',date:D.date,storeId:sid,pid,qty}:{action:'setQty',date:D.date,storeId:sid,seq,pid,qty});
+    const r=await api('POST',mode==='ship'?{action:'setShip',date:D.date,storeId:sid,seq,pid,ship:qty}:mode==='new'?{action:'newSlip',date:D.date,storeId:sid,pid,qty,free}:{action:'setQty',date:D.date,storeId:sid,seq,pid,qty});
     D.orders=D.orders.filter(o=>okey(o)!==okey(r.order));
     if(r.order.items.length)D.orders.push(r.order);
     if(mode==='new'){renderAll();toast(`已開「${slipName(okey(r.order))}」`);return}
@@ -2097,7 +2103,13 @@ function docSlip(k){
   const s=SM()[sidOf(k)],supp=seqOf(k)>1?` 補單 #${seqOf(k)}`:'';
   const o=orderOf(k);const items=sortItems(o.items);
   // 沒有單價權限的人（理貨、司機）、或這張單還有品項沒填當天單價，印的是不含金額的出貨單（不然會印出上次的價格）
-  const unpriced=hasPrice()&&o.items.some(i=>!(i.pid in D.dayPrices));
+  const unpriced=hasPrice()&&!o.free&&o.items.some(i=>!(i.pid in D.dayPrices));
+  // 補送、換貨不收費：印不含金額的單，標明免費
+  if(o.free)return `<div class="doc break"><h3>${esc(SHOPN())}　${FREE_N[o.free]}單</h3>
+  <div class="meta"><span>客戶：${esc(s.name)}</span><span>日期：${ymdSlash(D.date)}</span><span>路線：第 ${s.route} 站</span>${s.address?`<span>地址：${esc(s.address)}</span>`:''}</div>
+  <table><thead><tr><th>品名</th><th class="n">數量</th></tr></thead>
+  <tbody>${items.map(i=>`<tr><td>${esc(i.name)}</td><td class="n">${billQty(i)?esc(qtyText(billQty(i),i.unit)):'缺貨'}</td></tr>`).join('')}</tbody></table>
+  <div class="sign"><div>送貨人：＿＿＿＿＿＿</div>${signLine(k)}</div><div class="foot">這張是${FREE_N[o.free]}，不另外收費。</div></div>`;
   if(!hasPrice()||unpriced)return `<div class="doc break"><h3>${esc(SHOPN())}　出貨單${supp}</h3>
   <div class="meta"><span>客戶：${esc(s.name)}</span><span>日期：${ymdSlash(D.date)}</span><span>路線：第 ${s.route} 站</span>${o.source?`<span>來源：${o.source==='phone'?'電話':'LINE'}</span>`:''}${s.address?`<span>地址：${esc(s.address)}</span>`:''}</div>
   <table><thead><tr><th>品名</th><th class="n">數量</th></tr></thead>
@@ -2480,7 +2492,8 @@ document.addEventListener('click',async e=>{
   if(b.dataset.additem||b.dataset.newslip){
     const k=b.dataset.additem||b.dataset.newslip,pid=pidOf($('add-'+k).value),q=parseQty($('addq-'+k).value,PM()[pid]?.unit);
     if(!pid){toast($('add-'+k).value.trim()?'找不到這個品項，請從打字跳出來的清單選':'請先打字找品項');$('add-'+k).focus();return}if(!(q>0)){toast('數量看不懂，例如 3、2.5、2斤4兩');$('addq-'+k).focus();return}
-    if(b.dataset.newslip){if(confirm(`幫「${SM()[k].name}」開一張補單，先放「${PM()[pid].name} ${qtyText(q,PM()[pid].unit)}」？`))setQty(k,pid,q,false,'new');return}
+    if(b.dataset.newslip){const free=document.querySelector(`input[name="nsk-${k}"]:checked`)?.value||'';
+      if(confirm(`幫「${SM()[k].name}」開一張${FREE_N[free]?FREE_N[free]+'單（免費）':'補單'}，先放「${PM()[pid].name} ${qtyText(q,PM()[pid].unit)}」？`))setQty(k,pid,q,false,'new',free);return}
     const cur=orderOf(k)?.items.find(i=>i.pid===pid)?.qty||0;setQty(k,pid,cur+q);
   }
   if(b.id==='remind'){
@@ -2543,6 +2556,12 @@ document.addEventListener('click',async e=>{
     try{const j=await api('POST',{action:'payment',month:D.month,storeId:sid,amount,method:v('method'),date:v('date'),note:v('note'),checkNo:v('checkNo'),checkDue:v('checkDue')});D.paid=j.paid;renderBills();toast(`已記 ${SM()[sid].name} 收款 ${money(amount)}`)}catch(err){toast(err.message);b.disabled=false}
   }
   if(b.dataset.phist){showPriceHistory(b.dataset.phist);return}
+  // 店家回報 → 免費補送／換貨單：選送哪天（預設現在叫貨中的那天）和數量
+  if(b.dataset.issfree){const x=(D.issues||[]).find(i=>i.id===b.dataset.iss);if(!x)return;const kind=FREE_N[b.dataset.issfree],u=PM()[x.pid]?.unit||'';
+    const qs=prompt(`${x.storeName}：${x.name} 要${kind}多少？（例如 2、1斤8兩）`,'');if(qs==null)return;const qty=parseQty(qs,u);if(!(qty>0)){toast('數量看不懂，例如 2、1斤8兩');return}
+    const date=prompt(`哪一天送？（YYYY-MM-DD，免費，不另收費）`,D.openDate);if(!date)return;
+    try{const j=await api('POST',{action:'issueSlip',id:x.id,free:b.dataset.issfree,pid:x.pid,qty,date});D.issues=j.issues;toast(`已開 ${md(date)} ${x.storeName} ${kind}單（免費）`);await load()}catch(err){toast(err.message)}
+    return}
   if(b.dataset.cashed){b.disabled=true;
     try{const j=await api('POST',{action:'checkCashed',month:b.dataset.month,storeId:b.dataset.store,id:b.dataset.cashed,cashed:true});if(b.dataset.month===D.month){D.paid=j.paid;renderBills()}TODO=null;loadTodo();toast('支票已兌現')}catch(err){toast(err.message);b.disabled=false}
     return}

@@ -115,11 +115,11 @@ async function load(){
   if(!r?.ok){$('msg').textContent=D.error;return}
   document.title=`${D.store} 確認配送單`;
   $('title').textContent=`${D.store}・確認配送單`;
-  $('sub').textContent=`${D.shopName}　${D.dateLabel} 配送${D.seq>1?`（補單 #${D.seq}）`:''}`;
+  $('sub').textContent=`${D.shopName}　${D.dateLabel} 配送${D.free?`（${D.free}）`:D.seq>1?`（補單 #${D.seq}）`:''}`;
   // 核對的重點是數量：數量放大放右邊；實出和叫的不一樣用紅字標出來；金額放小字
   $('items').innerHTML=D.items.map(i=>`<div class="row"><span>${esc(i.name)}${i.qty!==i.ordered?`<small class="diff">叫 ${esc(qtyText(i.ordered,i.unit))}，實際 ${i.qty?esc(qtyText(i.qty,i.unit)):'缺貨'}</small>`:''}${i.amount!=null&&i.qty?`<small>${money(i.price)} × ${esc(qtyText(i.qty,i.unit))} ＝ ${money(i.amount)}</small>`:''}</span>
     <b class="q ${i.qty!==i.ordered?'chg':''}">${i.qty?esc(qtyText(i.qty,i.unit)):'缺貨'}</b></div>`).join('');
-  if(D.total!=null){$('total').hidden=false;$('total').innerHTML=`<span>合計</span><span>${money(D.total)}</span>`}else $('pnote').hidden=false;
+  if(D.total!=null){$('total').hidden=false;$('total').innerHTML=`<span>合計</span><span>${money(D.total)}</span>`}else{$('pnote').hidden=false;if(D.free)$('pnote').textContent=`這張是${D.free}，不另外收費。`}
   $('msg').hidden=true;$('main').hidden=false;
   // 「數量不對」：打開聊天室帶好開頭，店家補上哪裡不對
   if(D.basicId&&!D.confirmed){$('problem').hidden=false;$('problem').href=`https://line.me/R/oaMessage/${encodeURIComponent(D.basicId)}/?${encodeURIComponent(`${D.dateLabel} 配送單${D.seq>1?` 補單#${D.seq}`:''}有問題：`)}`}

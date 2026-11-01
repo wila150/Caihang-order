@@ -397,6 +397,7 @@ async function repriceOpen() {
   let n = 0;
   for (const d of snap.docs) {
     const o = d.data();
+    if (o.free) continue; // 補送、換貨不收費
     let changed = false;
     for (const it of o.items) {
       const base = it.base ?? it.price;
@@ -453,6 +454,7 @@ export async function setDayPrices(date, input, costInput = {}) {
   // 套用到這天所有訂單（各店照報價組換算）
   const [stores, groups] = await Promise.all([getStores(), getPriceGroups()]);
   for (const o of await ordersOfDate(date)) {
+    if (o.free) continue; // 補送、換貨不收費
     const g = groups.find((x) => x.id === stores.find((s) => s.id === o.storeId)?.groupId);
     let changed = false;
     for (const it of o.items) {
@@ -803,6 +805,7 @@ export async function monthAmounts(month) {
 // 整張訂單覆蓋。by：'店家' 或 '後台'；who：後台是誰改的
 // items 可以是陣列，或 (舊訂單) => 陣列：要「在舊的單上加減」時用函式，才不會跟同時間的修改互相蓋掉
 // 用 transaction：同一張單同時有人改（店家改單、理貨填實出量、AI 確認），Firestore 會自動重跑，不會遺失修改
+export const FREE_KINDS = { resend: '補送', exchange: '換貨' };
 export async function saveOrder(sid, date, items, by, who = '', seq = 1, opts = {}) {
   if (!isDate(date)) throw new UserError('配送日不正確');
   if (by === '店家' && date !== openDate()) throw new UserError('這一天已經截單了，請重新整理後再叫貨', 409);
@@ -822,6 +825,8 @@ export async function saveOrder(sid, date, items, by, who = '', seq = 1, opts = 
   const old = oldSnap.data() ?? null;
   // 交易撞到別人同時改單會重跑：每次都要用這次讀到的最新的單重算，不能改掉外面的 items
   const list = typeof items === 'function' ? items(old) : items;
+  // 補送（少給、漏給）、換貨（品質不好）：不另外收費，單價一律 0；開單時決定，之後改數量也維持免費
+  const free = old?.free || (FREE_KINDS[opts.free] ? opts.free : '');
   const oldMap = new Map((old?.items || []).map((i) => [i.pid, i]));
 
   const next = [];
@@ -839,7 +844,7 @@ export async function saveOrder(sid, date, items, by, who = '', seq = 1, opts = 
     // 叫貨量沒變的話，保留理貨已經秤好的實出量
     const keepShip = was && was.qty === qty && was.ship != null ? { ship: was.ship } : {};
     const base = p ? dayPrices[it.pid] ?? p.price : was.base ?? was.price;
-    next.push({ pid: it.pid, name: src.name, unit: src.unit, base, price: p ? priceFor(base, it.pid, group) : was.price, qty, ...keepShip });
+    next.push({ pid: it.pid, name: src.name, unit: src.unit, base, price: free ? 0 : p ? priceFor(base, it.pid, group) : was.price, qty, ...keepShip });
   }
   if (!next.length && !old?.items.length) throw new UserError('還沒選任何品項');
   const idx = (pid) => { const i = products.findIndex((p) => p.id === pid); return i < 0 ? 1e9 : i; };
@@ -870,6 +875,7 @@ export async function saveOrder(sid, date, items, by, who = '', seq = 1, opts = 
     ...((old?.items.length && old.addon) || by === '店家補單' ? { addon: true } : {}), // 店家自己開的補單
     // 叫貨來源：店家自己在 LINE／叫貨頁叫的（含 AI 讀訊息、照片）是 line，後台幫忙開的（電話叫貨、代客叫貨）是 phone；第一次建立時決定
     source: old?.source || (by.startsWith('店家') || /LINE|AI|對照/.test(who) ? 'line' : 'phone'),
+    ...(free ? { free } : {}),
     items: next,
     ...(edits ? { storeEdits: edits } : {}),
     createdAt: old?.items.length ? old.createdAt : at,
@@ -911,17 +917,18 @@ export async function slipsOfDay(sid, date) {
 }
 
 // 後台開補單：跟原本的單分開，另開一張（原本的單有沒有確認都可以）
-export async function newSlip(sid, date, pid, qty, who) {
-  if (!(await slipsOfDay(sid, date)).length) throw new UserError('這家店這天還沒有出貨單，直接加品項就好');
-  return saveNewSlip(sid, date, [{ pid, qty }], '後台', who);
+export async function newSlip(sid, date, pid, qty, who, free = '') {
+  // 補送、換貨單可以單獨開（那天不一定有原本的單，例如隔天才補）；收費的補單要先有原本的單
+  if (!FREE_KINDS[free] && !(await slipsOfDay(sid, date)).length) throw new UserError('這家店這天還沒有出貨單，直接加品項就好');
+  return saveNewSlip(sid, date, [{ pid, qty }], '後台', FREE_KINDS[free] ? `${who}・${FREE_KINDS[free]}` : who, { free });
 }
 
 // 開一張新的單：用沒用過的序號（清空的單也不重用，舊的確認連結才不會對到新單）；同時有人開單撞號就換下一號
-export async function saveNewSlip(sid, date, items, by, who = '') {
+export async function saveNewSlip(sid, date, items, by, who = '', opts = {}) {
   const snap = await db().collection('orders').where('date', '==', date).where('storeId', '==', sid).get();
   let seq = Math.max(0, ...snap.docs.map((d) => d.data().seq || 1)) + 1;
   for (let i = 0; i < 5; i++, seq++) {
-    try { return await saveOrder(sid, date, items, by, who, seq, { fresh: true }); }
+    try { return await saveOrder(sid, date, items, by, who, seq, { ...opts, fresh: true }); }
     catch (e) { if (e.code !== 'SEQ_TAKEN') throw e; }
   }
   throw new UserError('剛好有人同時在開單，請再按一次');

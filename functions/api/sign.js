@@ -17,7 +17,8 @@ async function slipOf(token) {
     shop.getDayPrices(t.date),
   ]);
   if (!store || !order?.items.length) throw new UserError('找不到這張配送單，可能已經取消了', 404);
-  return { t, store, order, sig, priced: order.items.every((i) => i.pid in dayPrices) };
+  // 補送、換貨不收費：不顯示金額
+  return { t, store, order, sig, priced: !order.free && order.items.every((i) => i.pid in dayPrices) };
 }
 
 export async function GET(request) {
@@ -37,6 +38,7 @@ export async function GET(request) {
       date: t.date,
       dateLabel: label(t.date),
       seq: t.seq,
+      free: { resend: '補送', exchange: '換貨' }[order.free] || '',
       items,
       total: priced ? shop.amountOf(order) : null,
       confirmed: sig ? { at: sig.at, signer: sig.signer } : null,
