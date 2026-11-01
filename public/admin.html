@@ -46,6 +46,13 @@ header.top p{margin:0;color:var(--muted);font-size:.9rem}
 .who .pbtn{padding:3px 10px}
 .users .urow{display:grid;grid-template-columns:1fr 110px auto;gap:8px;align-items:center;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--line)}
 .users .urow.off{opacity:.55}
+.permtbl{overflow-x:auto}
+.permtbl table{border-collapse:collapse;width:100%;background:var(--surface);border-radius:10px;overflow:hidden}
+.permtbl th,.permtbl td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:center;font-size:.92rem}
+.permtbl th:first-child,.permtbl td:first-child{text-align:left}
+.permtbl input{width:20px;height:20px}
+.uperm{grid-column:1/-1;display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;padding:8px 0 4px;border-top:1px dashed var(--line);margin-top:6px}
+.uperm .ua{grid-column:1/-1}
 .users .urow small{display:block;color:var(--muted)}
 .users select,.users input{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:5px 8px;font-size:.92rem;min-width:0}
 .users .ua{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
@@ -687,7 +694,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 103115</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 110101</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -729,6 +736,11 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
       <button id="addUser" type="button">加入</button>
     </form>
     <div class="users" id="userList"></div>
+    </div></details>
+    <details class="sgrp" id="permBox"><summary><svg class="si" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span class="st">權限<small id="hPerms">每個角色能做什麼</small></span><svg class="sc" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></summary><div class="sgb">
+    <p class="sub">勾選每個角色可以做的事，按「儲存權限」後員工重新整理就生效。老闆和工程師一律有全部權限；帳號、權限和設定只有老闆能改。個別員工要多給或拿掉，在上面「後台帳號」按「個別權限」。</p>
+    <div class="permtbl" id="permTable"></div>
+    <div class="bar"><button class="send" id="permSave" type="button">儲存權限</button><button class="pbtn" id="permReset" type="button">恢復預設</button></div>
     </div></details>
     </div>
     <div id="unitsSet" hidden>
@@ -979,7 +991,8 @@ function renderAll(){
   if(may('stores'))renderStores();
   $('userBox').hidden=$('rulesBox').hidden=$('palSet').hidden=!may('users');
   if(may('users')){renderRules();renderPalettes();renderPrints();renderBoss()}
-  if(may('users'))renderUsers();
+  if(may('users')){renderUsers();renderPerms()}
+  $('permBox').hidden=!may('users')||!D.perms;
   $('devBox').hidden=!D.me.engineer;
 }
 
@@ -1984,7 +1997,23 @@ function renderUsers(){queueMicrotask(setHints);
   $('userList').innerHTML=(reqs?`<h4 style="margin:6px 0">等你加入（用 LINE 申請）</h4>${reqs}<h4 style="margin:12px 0 6px">已加入</h4>`:'')+D.users.map(u=>`<div class="urow ${u.disabled?'off':''}">
     <span><b>${esc(u.name||u.email)}</b><small>${u.email.startsWith('line:')?'LINE 登入':esc(u.email)}${u.disabled?'・已停用':''}${u.email===D.me.email?'・你自己':''}</small></span>
     ${u.fixed?`<span>${D.roles.owner}</span><span class="meta">在 OWNER_EMAILS 設定</span>`:`<select data-urole="${esc(u.email)}" aria-label="${esc(u.email)} 的角色">${Object.entries(D.roles).filter(([k])=>k!=='owner'&&k!=='engineer').map(([k,v])=>`<option value="${k}" ${k===u.role?'selected':''}>${v}</option>`).join('')}</select>
-    <span class="ua"><button data-uoff="${esc(u.email)}" data-off="${u.disabled?0:1}">${u.disabled?'恢復':'停用'}</button><button data-urm="${esc(u.email)}">刪除</button></span>`}</div>`).join('')||'<div class="empty">還沒有其他帳號</div>';
+    <span class="ua"><button data-uperm="${esc(u.email)}">個別權限${(u.add?.length||u.remove?.length)?`（${(u.add?.length||0)+(u.remove?.length||0)}）`:''}</button><button data-uoff="${esc(u.email)}" data-off="${u.disabled?0:1}">${u.disabled?'恢復':'停用'}</button><button data-urm="${esc(u.email)}">刪除</button></span>${openPerm===u.email?userPermEditor(u):''}`}</div>`).join('')||'<div class="empty">還沒有其他帳號</div>';
+}
+/* ---------- 權限：各角色勾選、個別員工多給／拿掉 ---------- */
+let permDraft=null,openPerm='';
+const STAFF_ROLES=()=>Object.keys(D.perms?.defaults||{});
+function renderPerms(){
+  if(!D.perms)return;
+  if(!permDraft)permDraft=structuredClone(D.perms.roles);
+  const roles=STAFF_ROLES();
+  $('permTable').innerHTML=`<table><thead><tr><th>可以做的事</th>${roles.map(r=>`<th>${esc(D.roles[r]||r)}</th>`).join('')}</tr></thead><tbody>${Object.entries(D.perms.list).map(([k,label])=>`<tr><td>${esc(label)}</td>${roles.map(r=>`<td><input type="checkbox" data-perm="${r}:${k}" aria-label="${esc(D.roles[r])}：${esc(label)}" ${permDraft[r]?.includes(k)?'checked':''}></td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+// 個別權限：每一項選「照角色」「多給」「拿掉」
+function userPermEditor(u){
+  const base=D.perms?.roles?.[u.role]||[];
+  return `<div class="uperm">${Object.entries(D.perms?.list||{}).map(([k,label])=>{const v=u.add?.includes(k)?'add':u.remove?.includes(k)?'remove':'';
+    return `<span>${esc(label)}<small>${D.roles[u.role]}${base.includes(k)?'可以':'不行'}</small></span><select data-up="${k}" aria-label="${esc(label)}"><option value="" ${v===''?'selected':''}>照角色（${base.includes(k)?'可以':'不行'}）</option>${base.includes(k)?`<option value="remove" ${v==='remove'?'selected':''}>這個人拿掉</option>`:`<option value="add" ${v==='add'?'selected':''}>這個人多給</option>`}</select>`}).join('')}
+    <span class="ua"><button data-upsave="${esc(u.email)}">儲存個別權限</button><button data-uperm="${esc(u.email)}">關閉</button></span></div>`;
 }
 async function userAction(body,msg){
   try{const j=await api('POST',body);D.users=j.users;renderUsers();toast(msg)}catch(e){toast(e.message);renderUsers()}
@@ -2303,6 +2332,12 @@ $('lineBtn').addEventListener('click',lineLogin);
 document.addEventListener('click',e=>{if(e.target.id==='pairCancel'){clearInterval(pairTimer);$('pairBox').hidden=true}});
 // 回到這個畫面（從 LINE 切回來）馬上再問一次，不用等
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&pairPoll&&!$('pairBox').hidden)pairPoll()});
+// 權限表：勾選先記在草稿，按「儲存權限」才送出
+$('permTable').addEventListener('change',e=>{const [r,k]=(e.target.dataset.perm||'').split(':');if(!r)return;const a=permDraft[r]||(permDraft[r]=[]);if(e.target.checked){if(!a.includes(k))a.push(k)}else permDraft[r]=a.filter(x=>x!==k)});
+$('permSave').addEventListener('click',async()=>{
+  try{const j=await api('POST',{action:'rolePerms',roles:permDraft});D.perms.roles=j.roles;permDraft=structuredClone(j.roles);renderPerms();renderUsers();toast('權限已儲存，員工重新整理後台就生效')}catch(e){toast(e.message)}
+});
+$('permReset').addEventListener('click',()=>{if(!confirm('把所有角色的權限恢復成預設？（按「儲存權限」才會生效）'))return;permDraft=structuredClone(D.perms.defaults);renderPerms()});
 $('addUser').addEventListener('click',()=>{
   const email=$('uEmail').value.trim(),name=$('uName').value.trim(),role=$('uRole').value;
   if(!email){toast('請填對方的 Google 帳號 Email');$('uEmail').focus();return}
@@ -2542,6 +2577,9 @@ document.addEventListener('click',async e=>{
   if(b.dataset.uoff){const off=b.dataset.off==='1';if(confirm(off?'停用後這個帳號就不能進後台，確定？':'恢復這個帳號？'))userAction({action:'updateUser',email:b.dataset.uoff,disabled:off},off?'已停用':'已恢復')}
   if(b.dataset.lradd){const r=D.lineReqs.find(x=>x.userId===b.dataset.lradd);try{const j=await api('POST',{action:'addLineUser',userId:r.userId,name:r.name,role:$('lr-'+r.userId).value});D.users=j.users;D.lineReqs=j.lineReqs;renderUsers();toast(`已加入，請「${r.name}」再按一次「用 LINE 登入」`)}catch(e){toast(e.message)}return}
   if(b.dataset.lrdrop){try{const j=await api('POST',{action:'dropLineReq',userId:b.dataset.lrdrop});D.lineReqs=j.lineReqs;renderUsers()}catch(e){toast(e.message)}return}
+  if(b.dataset.uperm){openPerm=openPerm===b.dataset.uperm?'':b.dataset.uperm;renderUsers();return}
+  if(b.dataset.upsave){const box=b.closest('.uperm'),add=[],remove=[];box.querySelectorAll('[data-up]').forEach(x=>{if(x.value==='add')add.push(x.dataset.up);if(x.value==='remove')remove.push(x.dataset.up)});
+    openPerm='';userAction({action:'updateUser',email:b.dataset.upsave,add,remove},'個別權限已儲存，對方重新整理就生效');return}
   if(b.dataset.urm){if(confirm(`刪除 ${D.users.find(u=>u.email===b.dataset.urm)?.name||b.dataset.urm} 的後台權限？`))userAction({action:'removeUser',email:b.dataset.urm},'已刪除')}
   if(b.dataset.reject){if(confirm('拒絕這個申請？對方之後還可以再申請。')){try{await api('POST',{action:'reject',userId:b.dataset.reject});await load()}catch(err){toast(err.message)}}}
   if(b.dataset.unbind){if(sDirty){toast('請先儲存店家的修改');return}if(confirm('解除這個 LINE 帳號的綁定？對方就不能再叫貨。')){try{await api('POST',{action:'unbind',userId:b.dataset.unbind});await load();toast('已解除')}catch(err){toast(err.message)}}}

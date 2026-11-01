@@ -6,7 +6,7 @@ import { push, linkMenu } from '../lib/line.js';
 import { openDate, today, thisMonth, isDate, isMonth, cutoffLabel, getRulesNow } from '../lib/dates.js';
 import * as shop from '../lib/shop.js';
 import * as ex from '../lib/expense.js';
-import { signedIn, need, can, ROLES, listUsers, addUser, addLineUser, updateUser, removeUser } from '../lib/auth.js';
+import { signedIn, need, can, ROLES, PERMS, DEFAULT_CAN, getRolePerms, saveRolePerms, listUsers, addUser, addLineUser, updateUser, removeUser } from '../lib/auth.js';
 import { lineLogin, lineRequests, dropRequest, pairStart, pairCheck } from '../lib/linelogin.js';
 import { remindText, statementMessage, approvedText, dunningText, receiptMessage, slipMessage } from '../lib/messages.js';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -114,22 +114,24 @@ export async function GET(request) {
     }
     const date = isDate(q.get('date')) ? q.get('date') : openDate();
     const month = isMonth(q.get('month')) ? q.get('month') : thisMonth();
-    const bills = can(me.role, 'bills');
+    const bills = can(me, 'bills');
     const [stores, products, pending, monthRows, paid, dayOrders, dayPrices, units, users, priceGroups, storeAliases] = await Promise.all([
       shop.getStores(), shop.getProducts(),
-      can(me.role, 'stores') ? shop.listPending() : [],
+      can(me, 'stores') ? shop.listPending() : [],
       bills ? shop.monthAmounts(month) : [],
       bills ? shop.getPaid(month) : {},
       shop.ordersOfDate(date, { withEmpty: true }),
       shop.getDayPrices(date),
       shop.getUnits(),
-      can(me.role, 'users') ? listUsers() : [],
-      can(me.role, 'prices') ? shop.getPriceGroups() : [],
-      can(me.role, 'products') ? shop.allStoreAliases() : {},
+      can(me, 'users') ? listUsers() : [],
+      can(me, 'prices') ? shop.getPriceGroups() : [],
+      can(me, 'products') ? shop.allStoreAliases() : {},
     ]);
-    const showPrices = can(me.role, 'prices') || bills;
+    const showPrices = can(me, 'prices') || bills;
     return json({
-      me: { ...me, roleName: ROLES[me.role], can: ['bills', 'prices', 'editOrders', 'products', 'stores', 'remind', 'statement', 'users', 'sign', 'deleteOrders'].filter((w) => can(me.role, w)) },
+      me: { email: me.email, name: me.name, role: me.role, engineer: me.engineer, line: me.line, roleName: ROLES[me.role], can: [...Object.keys(PERMS), 'users'].filter((w) => can(me, w)) },
+      // 設定 → 權限：可以勾的權限、各角色現在的設定、預設值（只有老闆和工程師拿得到）
+      perms: can(me, 'users') ? { list: PERMS, roles: await getRolePerms(), defaults: DEFAULT_CAN } : null,
       // 工程師這個角色只有工程師自己看得到
       roles: me.role === 'engineer' ? ROLES : Object.fromEntries(Object.entries(ROLES).filter(([k]) => k !== 'engineer')),
       shop: { name: SHOP.name, phone: SHOP.phone, payTerms: SHOP.payTerms, basicId: SHOP.basicId, logo: SHOP.logo },
@@ -143,7 +145,7 @@ export async function GET(request) {
       month,
       stores,
       // 理貨、司機看不到單價
-      products: can(me.role, 'prices') ? products : products.map(noPriceProduct),
+      products: can(me, 'prices') ? products : products.map(noPriceProduct),
       pending,
       orders: (showPrices ? dayOrders : dayOrders.map((o) => ({ ...o, items: o.items.map(noPriceItem) }))).filter((o) => o.items.length),
       // 被取消／刪除的單只留紀錄
@@ -151,10 +153,10 @@ export async function GET(request) {
       signatures: await signaturesOf(date),
       // 出貨單印過的紀錄：{ 單號key: { q, p, at, by } }，畫面比對現在的內容，看是不是印過後又改了
       printed: (await getFirestore().doc('printed/' + date).get()).data()?.slips || {},
-      bossLine: can(me.role, 'users') ? await listBoss() : null,
-      lineReqs: can(me.role, 'users') ? await lineRequests() : [],
+      bossLine: can(me, 'users') ? await listBoss() : null,
+      lineReqs: can(me, 'users') ? await lineRequests() : [],
       dayPrices: showPrices ? dayPrices : {},
-      dayCosts: can(me.role, 'prices') ? await shop.getDayCosts(date) : {},
+      dayCosts: can(me, 'prices') ? await shop.getDayCosts(date) : {},
       bought: await shop.getBought(date),
       issues: await openIssues(),
       monthRows,
@@ -191,14 +193,14 @@ export async function POST(request) {
         need(me, 'editOrders');
         await store();
         const r = await shop.setQty(b.storeId, b.date, b.pid, b.qty, me.name, b.seq);
-        if (!can(me.role, 'prices')) r.order.items = r.order.items.map(noPriceItem);
+        if (!can(me, 'prices')) r.order.items = r.order.items.map(noPriceItem);
         return json(r);
       }
       case 'setShip': {
         need(me, 'editOrders');
         await store();
         const r = await shop.setShip(b.storeId, b.date, b.pid, b.ship, me.name, b.seq);
-        if (!can(me.role, 'prices')) r.order.items = r.order.items.map(noPriceItem);
+        if (!can(me, 'prices')) r.order.items = r.order.items.map(noPriceItem);
         return json(r);
       }
       case 'resetTestData': {
@@ -215,7 +217,7 @@ export async function POST(request) {
         need(me, 'editOrders');
         await store();
         const r = await shop.newSlip(b.storeId, b.date, b.pid, b.qty, me.name);
-        if (!can(me.role, 'prices')) r.order.items = r.order.items.map(noPriceItem);
+        if (!can(me, 'prices')) r.order.items = r.order.items.map(noPriceItem);
         return json(r);
       }
       case 'dayPrices':
@@ -523,6 +525,10 @@ export async function POST(request) {
         need(me, 'users');
         await dropRequest(String(b.userId || ''));
         return json({ lineReqs: await lineRequests() });
+      // 設定 → 權限：老闆勾各角色能做什麼
+      case 'rolePerms':
+        need(me, 'users');
+        return json({ roles: await saveRolePerms(b.roles) });
       case 'removeUser':
         need(me, 'users');
         if (b.email === me.email) throw new UserError('不能刪除自己的帳號');

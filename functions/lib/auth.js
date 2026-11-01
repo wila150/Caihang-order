@@ -13,15 +13,53 @@ export const ROLES = {
   driver: '司機',
 };
 
-// 每個角色能做的事
-const CAN = {
-  owner: ['*'],
-  engineer: ['*'], // 幫店家設定、維護系統的人（ENGINEER_EMAILS），不是老闆
+// 可以給員工的權限（後台「設定 → 權限」老闆勾選）。'users'（帳號、權限、設定）只有老闆和工程師，不能給員工
+export const PERMS = {
+  view: '看採買總表、出貨單',
+  prices: '看和填單價、進價',
+  bills: '對帳、收款、報表、記帳',
+  statement: '傳收據、對帳單、催款',
+  editOrders: '改叫貨／出貨數量、開補單、代客叫貨',
+  deleteOrders: '刪除出貨單',
+  products: '管理品項',
+  stores: '管理店家（開通、報價組）',
+  remind: '提醒店家叫貨',
+  sign: '確認配送單（簽收）',
+};
+// 老闆還沒改過時的預設（跟原本寫死的一樣）
+export const DEFAULT_CAN = {
   accounting: ['view', 'bills', 'prices', 'editOrders', 'deleteOrders', 'products', 'remind', 'statement', 'sign'],
   warehouse: ['view', 'editOrders', 'remind', 'sign'],
   driver: ['view', 'sign'],
 };
-export const can = (role, what) => !!CAN[role] && (CAN[role].includes('*') || CAN[role].includes(what));
+const STAFF = Object.keys(DEFAULT_CAN);
+const cleanPerms = (a) => [...new Set((Array.isArray(a) ? a : []).filter((p) => p in PERMS))];
+
+// 老闆設定的各角色權限：settings/perms { roles: { accounting: [...], ... } }，快取 30 秒
+let permsCache = null, permsAt = 0;
+export async function getRolePerms() {
+  if (permsCache && Date.now() - permsAt < 30e3) return permsCache;
+  const saved = (await getFirestore().doc('settings/perms').get()).data()?.roles || {};
+  permsCache = Object.fromEntries(STAFF.map((r) => [r, saved[r] ? cleanPerms(saved[r]) : DEFAULT_CAN[r]]));
+  permsAt = Date.now();
+  return permsCache;
+}
+export async function saveRolePerms(roles) {
+  const r = Object.fromEntries(STAFF.map((k) => [k, cleanPerms(roles?.[k])]));
+  await getFirestore().doc('settings/perms').set({ roles: r });
+  permsCache = r; permsAt = Date.now();
+  return r;
+}
+
+// 這個人實際有的權限：角色的權限＋個人多給的（add）－個人拿掉的（remove）
+async function effectivePerms(role, doc) {
+  if (role === 'owner' || role === 'engineer') return ['*'];
+  const base = (await getRolePerms())[role] || [];
+  const add = cleanPerms(doc?.add), remove = cleanPerms(doc?.remove);
+  return [...new Set([...base, ...add])].filter((p) => !remove.includes(p));
+}
+// who：登入的人（signedIn 回傳的 me，有 perms）
+export const can = (who, what) => !!who?.perms && (who.perms.includes('*') || who.perms.includes(what));
 
 const ownerEmails = () => (process.env.OWNER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 // 工程師：測試期間可以用「重置測試資料」，在 ENGINEER_EMAILS 指定，其他人看不到
@@ -44,7 +82,8 @@ export async function signedIn(request) {
     if (!s) throw new UserError('登入已過期，請重新登入', 401);
     const r = await lineRole(s.userId);
     if (!r) throw new UserError('這個 LINE 已經沒有後台權限了，請找老闆', 403);
-    return { email: 'line:' + s.userId, name: r.name || s.name || 'LINE 使用者', role: r.role, engineer: false, line: true };
+    const doc = r.role === 'owner' ? null : (await userDoc('line:' + s.userId).get()).data();
+    return { email: 'line:' + s.userId, name: r.name || s.name || 'LINE 使用者', role: r.role, engineer: false, line: true, perms: await effectivePerms(r.role, doc) };
   }
   const token = auth.replace(/^Bearer /, '');
   if (!token) throw new UserError('請先登入', 401);
@@ -55,11 +94,11 @@ export async function signedIn(request) {
   const doc = (await userDoc(email).get()).data();
   const role = ownerEmails().includes(email) ? 'owner' : engineerEmails().includes(email) ? 'engineer' : doc?.disabled ? null : doc?.role;
   if (!role) throw new UserError(`${email} 沒有後台權限，請老闆到「帳號」加入這個 Email`, 403);
-  return { email, name: doc?.name || user.name || email, role, engineer: engineerEmails().includes(email) };
+  return { email, name: doc?.name || user.name || email, role, engineer: engineerEmails().includes(email), perms: await effectivePerms(role, doc) };
 }
 
 export function need(me, what) {
-  if (!can(me.role, what)) throw new UserError(`「${ROLES[me.role]}」沒有這個權限`, 403);
+  if (!can(me, what)) throw new UserError(what in PERMS ? `「${me.name || ROLES[me.role]}」沒有這個權限（${PERMS[what]}），請老闆到「設定 → 權限」打開` : '只有老闆能做這件事', 403);
 }
 
 /* ---------- 帳號管理（老闆） ---------- */
@@ -95,7 +134,7 @@ export async function addLineUser({ userId, name, role }) {
   return listUsers();
 }
 
-export async function updateUser({ email, role, disabled }) {
+export async function updateUser({ email, role, disabled, add, remove }) {
   email = normEmail(email);
   if (ownerEmails().includes(email) || engineerEmails().includes(email)) throw new UserError('老闆和工程師帳號的權限是固定的（在 OWNER_EMAILS、ENGINEER_EMAILS 設定）');
   const ref = userDoc(email);
@@ -103,6 +142,8 @@ export async function updateUser({ email, role, disabled }) {
   const patch = {};
   if (role !== undefined) { if (!ROLES[role] || role === 'owner' || role === 'engineer') throw new UserError('角色不正確'); patch.role = role; }
   if (disabled !== undefined) patch.disabled = !!disabled;
+  if (add !== undefined) patch.add = cleanPerms(add);
+  if (remove !== undefined) patch.remove = cleanPerms(remove);
   await ref.update(patch);
   return listUsers();
 }
