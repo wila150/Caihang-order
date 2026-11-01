@@ -500,6 +500,7 @@ export async function saveStores(input) {
       pay: s.pay === 'cash' ? 'cash' : 'month', // 付款方式：month 月結（月底對帳單一次付）、cash 現結（每次送貨付）
       // ERP 客戶代號、連鎖店、聯絡人（匯入 ERP 客戶時帶進來）；畫面沒送就保留原本的
       ...Object.fromEntries(['code', 'chain', 'contact'].map((k) => [k, clean(s[k] === undefined ? old.get(s.id)?.[k] : s[k], 30)])),
+      rep: clean(s.rep === undefined ? old.get(s.id)?.rep : s.rep, 4), // 負責送貨的業務編號（0～3），業務出貨明細表依這個分
       members: old.get(s.id)?.members || [], // 綁定的 LINE 帳號只能用開通／解除改
       ...(old.get(s.id)?.invite ? { invite: old.get(s.id).invite } : {}), // 綁定 QR Code
     };
@@ -858,6 +859,8 @@ export async function saveOrder(sid, date, items, by, who = '', seq = 1, opts = 
     storeId: sid,
     seq,
     ...((old?.items.length && old.addon) || by === '店家補單' ? { addon: true } : {}), // 店家自己開的補單
+    // 叫貨來源：店家自己在 LINE／叫貨頁叫的（含 AI 讀訊息、照片）是 line，後台幫忙開的（電話叫貨、代客叫貨）是 phone；第一次建立時決定
+    source: old?.source || (by.startsWith('店家') || /LINE|AI|對照/.test(who) ? 'line' : 'phone'),
     items: next,
     ...(edits ? { storeEdits: edits } : {}),
     createdAt: old?.items.length ? old.createdAt : at,

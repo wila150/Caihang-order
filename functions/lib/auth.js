@@ -8,6 +8,7 @@ import { verifySession, lineRole, dropRequest } from './linelogin.js';
 export const ROLES = {
   owner: '老闆',
   engineer: '工程師',
+  manager: '老闆娘', // 訪談：接單、價格、對帳、收付款、記帳、報表都能做，帳號和設定還是只有老闆
   accounting: '會計',
   warehouse: '理貨',
   driver: '司機',
@@ -28,6 +29,7 @@ export const PERMS = {
 };
 // 老闆還沒改過時的預設（跟原本寫死的一樣）
 export const DEFAULT_CAN = {
+  manager: ['view', 'prices', 'bills', 'statement', 'editOrders', 'deleteOrders', 'products', 'stores', 'remind', 'sign'],
   accounting: ['view', 'bills', 'prices', 'editOrders', 'deleteOrders', 'products', 'remind', 'statement', 'sign'],
   warehouse: ['view', 'editOrders', 'remind', 'sign'],
   driver: ['view', 'sign'],

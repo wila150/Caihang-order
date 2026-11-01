@@ -13,6 +13,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { signSlipToken, sign } from '../lib/token.js';
 import { originOf } from '../lib/http.js';
 import * as report from '../lib/report.js';
+import { audit, listAudit } from '../lib/audit.js';
 import { resetTestData } from '../lib/reset.js';
 import { applyDraft } from '../lib/aiorder.js';
 import { saveImage } from './img.js';
@@ -67,8 +68,9 @@ export async function GET(request) {
     // 簽名圖另外載（列印、查看時才需要）
     if (q.get('sig')) {
       need(me, 'view');
-      const s = (await getFirestore().doc('signatures/' + q.get('sig').replace(/[^\w-]/g, '')).get()).data();
-      return json({ signature: s || null });
+      const id = q.get('sig').replace(/[^\w-]/g, '');
+      const [s, p] = await Promise.all([getFirestore().doc('signatures/' + id).get(), getFirestore().doc('signPhotos/' + id).get()]);
+      return json({ signature: s.data() ? { ...s.data(), photo: p.data()?.data || '' } : null });
     }
     // AI 叫貨紀錄（最近 30 筆）
     // 對照改單：這筆 AI 紀錄那天、那家店目前的訂單
@@ -106,6 +108,10 @@ export async function GET(request) {
       return json({ thumb: await purchase.purchaseThumb(q.get('purchaseImg')) });
     }
     // 報表分頁另外載（要讀整個月的訂單）
+    if (q.get('audit')) {
+      need(me, 'users');
+      return json({ audit: await listAudit() });
+    }
     if (q.get('report')) {
       need(me, 'bills');
       const m = isMonth(q.get('report')) ? q.get('report') : thisMonth();
@@ -210,8 +216,10 @@ export async function POST(request) {
       }
       case 'deleteSlip': {
         need(me, 'deleteOrders');
-        await store();
-        return json(await shop.deleteSlip(b.storeId, b.date, me.name, b.seq));
+        const s = await store();
+        const r = await shop.deleteSlip(b.storeId, b.date, me.name, b.seq);
+        await audit(me, 'delete', `${s.name} ${b.date}${(b.seq || 1) > 1 ? ` 補單 #${b.seq}` : ''} 整張刪除`);
+        return json(r);
       }
       case 'newSlip': {
         need(me, 'editOrders');
@@ -220,9 +228,18 @@ export async function POST(request) {
         if (!can(me, 'prices')) r.order.items = r.order.items.map(noPriceItem);
         return json(r);
       }
-      case 'dayPrices':
+      case 'dayPrices': {
         need(me, 'prices');
-        return json({ dayPrices: await shop.setDayPrices(b.date, b.prices, b.costs) });
+        const [before, beforeCost, prods] = await Promise.all([shop.getDayPrices(b.date), shop.getDayCosts(b.date), shop.getProducts()]);
+        const r = await shop.setDayPrices(b.date, b.prices, b.costs);
+        // 只記真的有變的：已經填過的單價被改掉（第一次填不算改價）
+        const [after, afterCost] = await Promise.all([shop.getDayPrices(b.date), shop.getDayCosts(b.date)]);
+        const nm = new Map(prods.map((p) => [p.id, p.name]));
+        const diff = (a, z, label) => Object.keys(a).filter((pid) => pid in z && a[pid] !== z[pid]).map((pid) => `${nm.get(pid) || pid}${label} ${a[pid]} → ${z[pid]}`);
+        const changed = [...diff(before, after, ''), ...diff(beforeCost, afterCost, '（進價）')];
+        if (changed.length) await audit(me, 'price', `${b.date} ${changed.slice(0, 30).join('、')}${changed.length > 30 ? ` …共 ${changed.length} 項` : ''}`);
+        return json({ dayPrices: r });
+      }
       case 'renameCategory':
         need(me, 'products');
         return json(await shop.renameCategory(String(b.from || ''), b.to));
@@ -338,22 +355,34 @@ export async function POST(request) {
       case 'paid': {
         need(me, 'bills');
         if (!isMonth(b.month)) throw new UserError('月份不正確');
-        await store();
+        const s = await store();
         await shop.setPaid(b.month, b.storeId, !!b.paid);
+        await audit(me, 'paid', `${s.name} ${b.month} ${b.paid ? '整月收清' : '取消收清'}`);
         return json({ paid: await shop.getPaid(b.month) });
       }
-      case 'storePay':
+      case 'storePay': {
         need(me, 'bills');
-        return json({ stores: await shop.setStorePay(b.storeId, b.pay) });
-      case 'payment':
-        need(me, 'bills');
-        if (!isMonth(b.month)) throw new UserError('月份不正確');
-        await store();
-        return json({ paid: await shop.addPayment(b.month, b.storeId, b, me.name || me.email) });
-      case 'removePayment':
+        const stores = await shop.setStorePay(b.storeId, b.pay);
+        await audit(me, 'pay', `${stores.find((x) => x.id === b.storeId)?.name || b.storeId} 改成${b.pay === 'cash' ? '現結' : '月結'}`);
+        return json({ stores });
+      }
+      case 'payment': {
         need(me, 'bills');
         if (!isMonth(b.month)) throw new UserError('月份不正確');
-        return json({ paid: await shop.removePayment(b.month, b.storeId, String(b.id || '')) });
+        const s = await store();
+        const paid = await shop.addPayment(b.month, b.storeId, b, me.name || me.email);
+        await audit(me, 'payment', `${s.name} ${b.month} 收 $${Math.round(Number(b.amount)).toLocaleString('en-US')}（${b.method || '現金'}${b.checkNo ? ` 票號 ${b.checkNo}` : ''}）`);
+        return json({ paid });
+      }
+      case 'removePayment': {
+        need(me, 'bills');
+        if (!isMonth(b.month)) throw new UserError('月份不正確');
+        const gone = (await shop.getPaid(b.month))?.[b.storeId]?.list?.find((p) => p.id === b.id);
+        const paid = await shop.removePayment(b.month, b.storeId, String(b.id || ''));
+        const sn = (await shop.getStores()).find((x) => x.id === b.storeId)?.name || b.storeId;
+        await audit(me, 'unpay', `${sn} ${b.month} 刪掉收款${gone ? ` $${gone.amount.toLocaleString('en-US')}（${gone.date} ${gone.method}，${gone.by || ''}記的）` : ''}`);
+        return json({ paid });
+      }
       // 印了出貨單：記下印的時候的數量（q）和單價（p）簽章，之後有改就提醒重印
       case 'printed': {
         need(me, 'view');

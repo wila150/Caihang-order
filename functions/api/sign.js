@@ -52,10 +52,18 @@ export async function POST(request) {
     const { t, sig } = await slipOf(b.t);
     if (sig) throw new UserError('這張配送單已經確認過了', 409);
     if (b.confirmed !== true) throw new UserError('請先勾選「品項和數量正確」');
+    // 貨物照片（選填）：手機先縮成 JPEG 再傳；店家不在（放門口）時可以只拍照、不簽名
+    const photo = String(b.photo || '');
+    if (photo && (!/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(photo) || photo.length > 700000)) throw new UserError('照片格式不對或太大，請重拍一次');
+    const absent = !!b.absent;
+    if (absent && !photo) throw new UserError('店家不在的話，請拍一張貨物放置的照片');
     const png = String(b.png || '');
-    if (!/^data:image\/png;base64,/.test(png) || png.length > 300000) throw new UserError('請先簽名');
-    const rec = { date: t.date, storeId: t.storeId, seq: t.seq, key: t.key, png, signer: String(b.signer || '').trim().slice(0, 20), by: '店家線上確認', at: new Date().toISOString() };
+    if (!absent && (!/^data:image\/png;base64,/.test(png) || png.length > 300000)) throw new UserError('請先簽名');
+    const signer = String(b.signer || '').trim().slice(0, 20) || (absent ? '店家不在（拍照留存）' : '');
+    const rec = { date: t.date, storeId: t.storeId, seq: t.seq, key: t.key, ...(absent ? {} : { png }), ...(photo ? { hasPhoto: true } : {}), signer, by: absent ? '送貨拍照' : '店家線上確認', at: new Date().toISOString() };
     await getFirestore().doc(`signatures/${t.date}_${t.key}`).create(rec).catch((e) => { if (e.code === 6) throw new UserError('這張配送單剛剛已經確認過了', 409); throw e; }); // create：已經有人確認就失敗，不會互相蓋掉
+    // 照片另外存（簽收文件會跟著每天的出貨單一起讀，不要讓它變大）；留存當品質、少給爭議的憑證，不自動刪
+    if (photo) await getFirestore().doc(`signPhotos/${t.date}_${t.key}`).set({ data: photo, at: rec.at });
     return json({ confirmed: { at: rec.at, signer: rec.signer } });
   } catch (e) {
     return fail(e);

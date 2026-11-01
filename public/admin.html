@@ -46,6 +46,13 @@ header.top p{margin:0;color:var(--muted);font-size:.9rem}
 .who .pbtn{padding:3px 10px}
 .users .urow{display:grid;grid-template-columns:1fr 110px auto;gap:8px;align-items:center;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--line)}
 .users .urow.off{opacity:.55}
+.srct{display:inline-block;font-size:.72rem;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--line);color:var(--muted);vertical-align:2px}
+.srct.line{background:#06C75522;color:#05a548}
+.sigphoto img{max-width:60%;max-height:240px;margin-top:6px;border-radius:6px}
+.auditlog{overflow-x:auto;max-height:420px;overflow-y:auto}
+.auditlog table{border-collapse:collapse;width:100%;font-size:.88rem;background:var(--surface)}
+.auditlog th,.auditlog td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.auditlog td:first-child{white-space:nowrap;color:var(--muted)}
 .permtbl{overflow-x:auto}
 .permtbl table{border-collapse:collapse;width:100%;background:var(--surface);border-radius:10px;overflow:hidden}
 .permtbl th,.permtbl td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:center;font-size:.92rem}
@@ -694,7 +701,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 110101</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 110102</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -741,6 +748,9 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
     <p class="sub">勾選每個角色可以做的事，按「儲存權限」後員工重新整理就生效。老闆和工程師一律有全部權限；帳號、權限和設定只有老闆能改。個別員工要多給或拿掉，在上面「後台帳號」按「個別權限」。</p>
     <div class="permtbl" id="permTable"></div>
     <div class="bar"><button class="send" id="permSave" type="button">儲存權限</button><button class="pbtn" id="permReset" type="button">恢復預設</button></div>
+    </div></details>
+    <details class="sgrp" id="auditBox"><summary><svg class="si" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg><span class="st">操作紀錄<small>誰改了價格、刪了單、記了收款</small></span><svg class="sc" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></summary><div class="sgb">
+    <div class="auditlog" id="auditList"><div class="empty">載入中…</div></div>
     </div></details>
     </div>
     <div id="unitsSet" hidden>
@@ -993,6 +1003,7 @@ function renderAll(){
   if(may('users')){renderRules();renderPalettes();renderPrints();renderBoss()}
   if(may('users')){renderUsers();renderPerms()}
   $('permBox').hidden=!may('users')||!D.perms;
+  $('auditBox').hidden=!may('users');
   $('devBox').hidden=!D.me.engineer;
 }
 
@@ -1100,9 +1111,9 @@ async function saveDayPrices(){
 /* ---------- 出貨單：收據、確認配送單 ---------- */
 function slipActs(s,o,k){
   const sig=D.signatures?.[k];
-  const who=sig&&(sig.by==='店家線上確認'||sig.by==='店家線上簽收'?'店家已確認':'後台確認');
+  const who=sig&&(sig.by==='店家線上確認'||sig.by==='店家線上簽收'?'店家已確認':sig.by==='送貨拍照'?'拍照留存':'後台確認');
   return `<div class="sacts">
-    ${sig?`<span class="signed">✅ ${who} ${hm(sig.at)}${sig.signer?`（${esc(sig.signer)}）`:''}${sig.hasPng?`<button data-sigview="${k}">看確認單</button>`:''}</span><div class="lockhint" style="flex-basis:100%">配送單已確認，數量不能再改${may('editOrders')&&k===okey(slipsOf(s.id).at(-1))?'；要追加請用下面的「開補單」':''}</div>`
+    ${sig?`<span class="signed">✅ ${who} ${hm(sig.at)}${sig.signer?`（${esc(sig.signer)}）`:''}${sig.hasPng||sig.hasPhoto?`<button data-sigview="${k}">看確認單${sig.hasPhoto?'＋照片':''}</button>`:''}</span><div class="lockhint" style="flex-basis:100%">配送單已確認，數量不能再改${may('editOrders')&&k===okey(slipsOf(s.id).at(-1))?'；要追加請用下面的「開補單」':''}</div>`
       :may('sign')?`<button class="ok" data-signlink="${k}">傳確認連結</button><button class="pbtn" data-confirm="${k}">直接確認</button>`:''}
     ${may('statement')&&s.members?.length&&k===s.id?`<button class="send" data-receipt="${s.id}">${o.receiptSentAt?'再傳一次收據':missPrices([s.id]).length?(o.slipSentAt?'再傳一次出貨單':'LINE 傳出貨單'):'LINE 傳收據'}</button>`:''}
     <button class="pbtn" data-print="slip" data-store="${k}">列印</button>
@@ -1120,7 +1131,7 @@ async function sendReceipts(ids){
   if(!confirm(ask))return;
   try{const j=await api('POST',{action:'receipt',date:D.date,storeIds:ids,noPrice:miss.length>0});toast(`已傳${j.slipOnly?'出貨單':'收據'} ${j.sent}/${j.total} 家`);load()}catch(e){toast(e.message)}
 }
-async function sigImg(sid){try{return (await api('GET',null,`?sig=${D.date}_${sid}`)).signature?.png||''}catch{return ''}}
+async function sigImg(sid){try{const g=(await api('GET',null,`?sig=${D.date}_${sid}`)).signature;if(g?.photo)SIGP[sid]=g.photo;return g?.png||''}catch{return ''}}
 
 /* ---------- Excel ---------- */
 async function loadXLSX(){
@@ -1400,6 +1411,8 @@ function renderIssues(){
     ${(x.photos||[]).length?`<div class="iph">${x.photos.map(u=>`<img src="${esc(u)}" data-zoom="1" alt="店家拍的照片">`).join('')}</div>`:''}
     ${may('editOrders')?`<div class="acts"><button class="pbtn" data-issreply="${x.id}">回覆店家並處理</button><button class="pbtn" data-issdone="${x.id}">已處理</button></div>`:''}</div>`).join('')}</div>`:'';
 }
+// 叫貨來源：LINE（店家自己叫、AI 讀訊息）／電話（後台幫忙開的）
+const srcTag=o=>o.source==='phone'?' <span class="srct">電話</span>':o.source==='line'?' <span class="srct line">LINE</span>':'';
 function renderSlips(){
   renderIssues();
   const addRow=(k,label,btn,attr)=>`<div class="add"><input id="add-${k}" list="plist" placeholder="${btn==='加入'?'＋ 打字找品項':'＋ 補單品項（打字找）'}" aria-label="${label}"><input id="addq-${k}" type="text" placeholder="如 2斤4兩" aria-label="數量，可以打 2斤4兩"><button ${attr}="${k}">${btn}</button></div>`;
@@ -1421,7 +1434,7 @@ function renderSlips(){
       }).join('');
       // 補單跟原本的單分開：最後一張下面隨時可以另開補單
       const extra=(!locked&&idx===0?proxyBtn(s.id):'')+(!locked?addRow(k,`幫${esc(s.name)}加品項`,'加入','data-additem'):'')+(last&&may('editOrders')?`<details class="newslip" ${locked?'open':''}><summary>＋ 開補單</summary>${addRow(s.id,`幫${esc(s.name)}開補單`,'開補單','data-newslip')}</details>`:'');
-      return `<div class="slip ${locked?'locked':''} ${(o.seq||1)>1?'supp':''}"><div class="slip-h"><b>${esc(s.name)}${(o.seq||1)>1||o.addon?` <span class="suppno">${o.addon?'店家補單':'補單'} #${o.seq||1}</span>`:''}${ptag(k)}</b><span class="stop">第 ${s.route} 站</span></div>${items}
+      return `<div class="slip ${locked?'locked':''} ${(o.seq||1)>1?'supp':''}"><div class="slip-h"><b>${esc(s.name)}${(o.seq||1)>1||o.addon?` <span class="suppno">${o.addon?'店家補單':'補單'} #${o.seq||1}</span>`:''}${ptag(k)}${srcTag(o)}</b><span class="stop">第 ${s.route} 站</span></div>${items}
         ${extra}${slipActs(s,o,k)}</div>`;
     });
   }).join('')+(q?(stores.length?'':'<div class="slipnone">找不到這家店</div>'):noneN?`<div class="slipnone">還有 ${noneN} 家還沒叫貨。要幫哪家電話叫貨或加品項，在上面「找店家」打店名。</div>`:'')||'<div class="empty">還沒有店家，到「店家」新增。</div>';
@@ -1633,13 +1646,14 @@ function renderStores(){
   // 找店家：只畫找到的（data-i 還是原本的位置，改的時候才對得到）
   const q=SQ('sqStores');
   $('storeList').innerHTML=S.map((s,i)=>!storeHit(s,q)&&s.name?'':`<div class="srow ${s.on?'':'off'}">
-    <input type="number" min="1" inputmode="numeric" data-sf="route" data-i="${i}" value="${s.route}" aria-label="站號" title="站號">
+    <input type="number" min="1" inputmode="numeric" data-sf="route" data-i="${i}" value="${s.route}" aria-label="站號（送貨順序）" title="站號（送貨順序）">
     <input type="text" data-sf="name" data-i="${i}" value="${esc(s.name)}" placeholder="店名" aria-label="店名">
     <input type="text" data-sf="phone" data-i="${i}" value="${esc(s.phone)}" placeholder="電話" aria-label="電話">
     <input type="text" class="wide" data-sf="address" data-i="${i}" value="${esc(s.address)}" placeholder="送貨地址" aria-label="送貨地址" style="grid-column:1/4">
     ${s.code?`<div class="serp">ERP ${esc(s.code)}${s.chain?`・連鎖 ${esc(s.chain)}`:''}${s.contact?`・聯絡人 ${esc(s.contact)}`:''}</div>`:''}
     <div class="mem">LINE：${s.members?.length?s.members.map(m=>`<span>${esc(m.name||'未命名')}<button data-unbind="${m.userId}" aria-label="解除 ${esc(m.name)}">✕</button></span>`).join(''):'還沒綁定'}${s.id&&D.stores.some(x=>x.id===s.id)?`<button class="invbtn" data-invite="${s.id}">＋ 邀請綁定</button>`:''}
       <select data-sf="groupId" data-i="${i}" aria-label="${esc(s.name)} 的報價組"><option value="">基本價</option>${(D.priceGroups||[]).map(g=>`<option value="${g.id}" ${g.id===s.groupId?'selected':''}>${esc(g.name)}</option>`).join('')}</select>
+      <input type="text" data-sf="rep" data-i="${i}" value="${esc(s.rep??'')}" placeholder="業務" aria-label="${esc(s.name)} 負責的業務編號" title="負責的業務（例如 0～3）" style="width:4.5em" maxlength="4">
       <select data-sf="pay" data-i="${i}" aria-label="${esc(s.name)} 付款方式"><option value="month" ${s.pay!=='cash'?'selected':''}>月結</option><option value="cash" ${s.pay==='cash'?'selected':''}>現結</option></select>
       <label><input type="checkbox" data-sf="on" data-i="${i}" ${s.on?'checked':''}>合作中</label>
       <button class="x" data-sdel="${i}" aria-label="刪除${esc(s.name)}">刪除</button></div>
@@ -2022,9 +2036,11 @@ async function userAction(body,msg){
 /* ---------- 列印 ---------- */
 const SHOPN=()=>D.shop.name;
 const ymdSlash=d=>d.replaceAll('-','/');
-let SIGS={};
+let SIGS={},SIGP={}; // 簽名圖、貨物照片
 // 紙本給客戶用筆簽；有線上確認的話註明一下（舊的電子簽名也照樣印）
-const signLine=k=>{const g=D.signatures?.[k];const note=g?`<div style="font-size:.9em">${g.by==='店家線上確認'||g.by==='店家線上簽收'?'店家已線上確認':'已確認'} ${hm(g.at)}${g.signer?`（${esc(g.signer)}）`:''}</div>`:'';return SIGS[k]?`<div>簽收：<img class="sigimg" src="${SIGS[k]}" alt="簽名">${note}</div>`:`<div>簽收：＿＿＿＿＿＿${note}</div>`};
+const signLine=k=>{const g=D.signatures?.[k];const note=g?`<div style="font-size:.9em">${g.by==='店家線上確認'||g.by==='店家線上簽收'?'店家已線上確認':g.by==='送貨拍照'?'送貨拍照留存':'已確認'} ${hm(g.at)}${g.signer?`（${esc(g.signer)}）`:''}</div>`:'';
+  const pic=SIGP[k]?`<div class="sigphoto"><img src="${SIGP[k]}" alt="貨物照片"></div>`:'';
+  return (SIGS[k]?`<div>簽收：<img class="sigimg" src="${SIGS[k]}" alt="簽名">${note}</div>`:`<div>簽收：＿＿＿＿＿＿${note}</div>`)+pic};
 // 付款方式：現結每次付清；月結寫本月累計（到這張為止）
 const termsOf=s=>s?.pay==='cash'?'現結：收貨時請付清本單金額，謝謝。':D.shop.payTerms;
 function slipPayLine(s,total){
@@ -2039,13 +2055,13 @@ function docSlip(k){
   // 沒有單價權限的人（理貨、司機）、或這張單還有品項沒填當天單價，印的是不含金額的出貨單（不然會印出上次的價格）
   const unpriced=hasPrice()&&o.items.some(i=>!(i.pid in D.dayPrices));
   if(!hasPrice()||unpriced)return `<div class="doc break"><h3>${esc(SHOPN())}　出貨單${supp}</h3>
-  <div class="meta"><span>客戶：${esc(s.name)}</span><span>日期：${ymdSlash(D.date)}</span><span>路線：第 ${s.route} 站</span>${s.address?`<span>地址：${esc(s.address)}</span>`:''}</div>
+  <div class="meta"><span>客戶：${esc(s.name)}</span><span>日期：${ymdSlash(D.date)}</span><span>路線：第 ${s.route} 站</span>${o.source?`<span>來源：${o.source==='phone'?'電話':'LINE'}</span>`:''}${s.address?`<span>地址：${esc(s.address)}</span>`:''}</div>
   <table><thead><tr><th>品名</th><th class="n">數量</th></tr></thead>
   <tbody>${items.map(i=>`<tr><td>${esc(i.name)}</td><td class="n">${billQty(i)?esc(qtyText(billQty(i),i.unit)):'缺貨'}</td></tr>`).join('')}</tbody></table>
   <div class="sign"><div>送貨人：＿＿＿＿＿＿</div>${signLine(k)}</div>${unpriced?'<div class="foot">單價確認後，金額會在收據或對帳單上通知您。</div>':''}</div>`;
   const total=amount(o);
   return `<div class="doc break"><h3>${esc(SHOPN())}　出貨單／收據${supp}</h3>
-  <div class="meta"><span>客戶：${esc(s.name)}</span><span>日期：${ymdSlash(D.date)}</span><span>路線：第 ${s.route} 站</span>${s.address?`<span>地址：${esc(s.address)}</span>`:''}</div>
+  <div class="meta"><span>客戶：${esc(s.name)}</span><span>日期：${ymdSlash(D.date)}</span><span>路線：第 ${s.route} 站</span>${o.source?`<span>來源：${o.source==='phone'?'電話':'LINE'}</span>`:''}${s.address?`<span>地址：${esc(s.address)}</span>`:''}</div>
   <table><thead><tr><th>品名</th><th class="n">數量</th><th class="n">單價</th><th class="n">金額</th></tr></thead>
   <tbody>${items.map(i=>`<tr><td>${esc(i.name)}</td><td class="n">${billQty(i)?esc(qtyText(billQty(i),i.unit)):'缺貨'}</td><td class="n">${i.price}</td><td class="n">${money(billQty(i)*i.price)}</td></tr>`).join('')}</tbody>
   <tfoot><tr><td colspan="3">合計</td><td class="n">${money(total)}</td></tr></tfoot></table>
@@ -2112,7 +2128,24 @@ function twoCol(arr,cell,k,head){
   return `<table><thead><tr>${head}<th class="gap"></th>${head}</tr></thead><tbody>${Array.from({length:h},(_,r)=>`<tr>${cell(arr[r],r)}<td class="gap"></td>${arr[r+h]?cell(arr[r+h],r+h):`<td colspan="${k}"></td>`}</tr>`).join('')}</tbody></table>`;
 }
 // 品項一塊：第一行品名，下面每家店一行（數量、店名、站號）
-const blk=(t,sm)=>`<div class="blk">${t.rows.slice().sort(byRoute(sm)).map((r,i)=>`<div><span>${i?'':esc(t.name)}</span><span class="n">${esc(qtyText(r.qty,t.unit))}</span><span>${esc(sm[r.sid]?.name||'')}</span><span class="n">${sm[r.sid]?.route??''}</span></div>`).join('')}</div>`;
+const blk=(t,sm)=>`<div class="blk">${t.rows.slice().sort(byRoute(sm)).map((r,i)=>`<div><span>${i?'':esc(t.name)}</span><span class="n">${esc(qtyText(r.qty,t.unit))}</span><span>${esc(sm[r.sid]?.name||'')}</span><span class="n">${repNo(sm[r.sid])}</span></div>`).join('')}</div>`;
+// 店名後面的數字：有指定業務印業務編號（ERP 叫貨單就是這樣），沒有就印站號
+const repNo=s=>s?(s.rep!=null&&s.rep!==''?s.rep:s.route??''):'';
+// 業務出貨明細表（排車用）：每位業務一頁，上面依品項彙整（裝車），下面照送貨順序列每家店要送的東西
+function docRep(){
+  const sm=SM(),g={};
+  D.orders.filter(o=>o.items.length&&sm[o.storeId]).forEach(o=>(g[sm[o.storeId].rep!=null&&sm[o.storeId].rep!==''?sm[o.storeId].rep:'未指定']??=[]).push(o));
+  return Object.keys(g).sort((a,b)=>a==='未指定'?1:b==='未指定'?-1:a.localeCompare(b,'zh-Hant',{numeric:true})).map(r=>{
+    const os=g[r],m={};
+    os.forEach(o=>o.items.forEach(i=>{const q=billQty(i);if(!q)return;(m[i.pid]??={pid:i.pid,name:i.name,unit:i.unit,qty:0,rows:[]}).qty+=q;m[i.pid].rows.push({sid:o.storeId,qty:q})}));
+    const T=sortItems(Object.values(m));
+    const stops=os.slice().sort((a,b)=>sm[a.storeId].route-sm[b.storeId].route||(a.seq||1)-(b.seq||1));
+    return `<div class="doc erp break"><h3>業務出貨明細表</h3>
+    <div class="eh"><span>業務：${esc(r)}</span><span>出貨日期：${roc(D.date)}</span><span>${stops.length} 張單、${T.length} 個品項</span><span>列印時間：${rocNow()}</span></div>
+    <h4>裝車（依品項）</h4><div class="blocks">${T.map(t=>blk(t.rows.length>1?{...t,name:`${t.name}（共 ${qtyText(t.qty,t.unit)}）`}:t,sm)).join('')}</div>
+    <h4>送貨順序</h4><table><thead><tr><th class="n">站</th><th>店家</th><th>地址／電話</th><th>品項</th></tr></thead><tbody>${stops.map(o=>{const s=sm[o.storeId];return `<tr><td class="n">${s.route}</td><td>${sname(s)}${(o.seq||1)>1?` 補單#${o.seq}`:''}</td><td>${esc(s.address||'')}${s.phone?`<br>${esc(s.phone)}`:''}</td><td>${sortItems(o.items).filter(i=>billQty(i)).map(i=>`${esc(i.name)} ${esc(qtyText(billQty(i),i.unit))}`).join('、')}</td></tr>`}).join('')}</tbody></table></div>`;
+  }).join('');
+}
 const supOf=(pid,pm)=>pm[pid]?.supplier||'其他廠商';
 function bySupplier(T,pm){
   const g={},key={};T.forEach(t=>{(g[supOf(t.pid,pm)]??=[]).push(t);key[supOf(t.pid,pm)]=supKey(t.pid,pm)});
@@ -2231,12 +2264,12 @@ async function savePrints(){
 }
 const ENV={c5:['229mm 162mm','150mm'],dl:['220mm 110mm','98mm']};
 // kind：一種或好幾種（列印選單勾的），合在一起預覽；fmt：這次選的出貨單、對帳單格式
-const DAY_K=['slips','slipsNew','daily','buy','supOrder','pick','purchase'],MONTH_K=['month','stmtAll','stmtBrief','envelope','arSum','sales'];
+const DAY_K=['slips','slipsNew','daily','buy','supOrder','pick','rep','purchase'],MONTH_K=['month','stmtAll','stmtBrief','envelope','arSum','sales'];
 async function openPrint(kind,sid,fmt={}){
   let kinds=Array.isArray(kind)?kind:[kind];
   const s=sid&&SM()[sidOf(sid)];
   // 店家的電子簽名一起印在確認單上
-  if(kinds.some(k=>k==='slip'||k==='slips'||k==='slipsNew')){SIGS={};const ids=kinds.includes('slip')?[sid]:Object.keys(D.signatures||{});await Promise.all(ids.filter(x=>D.signatures?.[x]?.hasPng).map(async x=>SIGS[x]=await sigImg(x)))}
+  if(kinds.some(k=>k==='slip'||k==='slips'||k==='slipsNew')){SIGS={};SIGP={};const ids=kinds.includes('slip')?[sid]:Object.keys(D.signatures||{});await Promise.all(ids.filter(x=>D.signatures?.[x]?.hasPng||D.signatures?.[x]?.hasPhoto).map(async x=>SIGS[x]=await sigImg(x)))}
   const withOrder=D.stores.filter(x=>slipsOf(x.id).length).sort((a,b)=>a.route-b.route);
   const allSlips=withOrder.flatMap(x=>slipsOf(x.id).map(okey));
   const newSlips=allSlips.filter(k=>printState(k)!=='ok');
@@ -2260,7 +2293,7 @@ async function openPrint(kind,sid,fmt={}){
     const mo=(kinds.includes('sales')||(erpStmt&&kinds.some(k=>k==='stmt'||k==='stmtAll')))?await monthOrders():null;
     const stmtDoc=x=>erpStmt?docStmtErp(x,mo):docStmt(x);
     const make={buy:docBuy,daily:docDaily,month:docMonth,slip:()=>slipDoc(sid),stmt:()=>stmtDoc(s),slips:()=>allSlips.map(slipDoc).join(''),slipsNew:()=>newSlips.map(slipDoc).join(''),
-      supOrder:docSupOrder,pick:docPick,purchase:docPurchase,stmtAll:()=>billed.map(stmtDoc).join(''),stmtBrief:()=>billed.map(docStmtBrief).join(''),
+      supOrder:docSupOrder,pick:docPick,rep:docRep,purchase:docPurchase,stmtAll:()=>billed.map(stmtDoc).join(''),stmtBrief:()=>billed.map(docStmtBrief).join(''),
       envelope:()=>billed.map(docEnvelope).join(''),arSum:docArSum,sales:()=>docSales(mo)};
     html=kinds.map(k=>`<div class="pk">${make[k]()}</div>`).join('');
   }catch(e){toast(e.message||'載入失敗');return}
@@ -2275,7 +2308,7 @@ async function openPrint(kind,sid,fmt={}){
   setPaper(k);
 }
 /* ---------- 列印選單：當場勾這次要印什麼，記住這台裝置上次勾的 ---------- */
-const PC_DAY=[['slips','出貨單／收據'],['buy','採買總表'],['supOrder','叫貨單（依廠商，每家一頁）'],['pick','出貨明細表（撿貨）'],['purchase','進貨單（每家廠商一張）'],['daily','當日營業報表']];
+const PC_DAY=[['slips','出貨單／收據'],['buy','採買總表'],['supOrder','叫貨單（依廠商，每家一頁）'],['pick','出貨明細表（撿貨）'],['rep','業務出貨明細表（每位業務一頁，排車用）'],['purchase','進貨單（每家廠商一張）'],['daily','當日營業報表']];
 const PC_MONTH=[['stmtAll','對帳單（每家一張）'],['stmtBrief','客戶對帳單（只列單號金額，有簽收欄）'],['month','應收總表'],['arSum','客戶帳款統計表'],['sales','客戶產品銷售統計表'],['envelope','信封（要另外印）']];
 const pcPref=()=>{try{return JSON.parse(localStorage.getItem('printPick')||'')||{}}catch{return {}}};
 function openChooser(from){
@@ -2332,6 +2365,11 @@ $('lineBtn').addEventListener('click',lineLogin);
 document.addEventListener('click',e=>{if(e.target.id==='pairCancel'){clearInterval(pairTimer);$('pairBox').hidden=true}});
 // 回到這個畫面（從 LINE 切回來）馬上再問一次，不用等
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&pairPoll&&!$('pairBox').hidden)pairPoll()});
+// 操作紀錄：打開才載入（最近 300 筆）
+const AUDIT_NAMES={price:'改價',delete:'刪單',payment:'收款',unpay:'刪收款',paid:'收清',pay:'結帳方式'};
+$('auditBox').addEventListener('toggle',async e=>{if(!e.target.open)return;
+  try{const j=await api('GET',null,'?audit=1');$('auditList').innerHTML=j.audit.length?`<table><thead><tr><th>時間</th><th>誰</th><th>動作</th><th>內容</th></tr></thead><tbody>${j.audit.map(a=>`<tr><td>${new Date(a.at).toLocaleDateString('zh-TW',{timeZone:'Asia/Taipei',month:'numeric',day:'numeric'})} ${hm(a.at)}</td><td>${esc(a.who)}</td><td>${esc(AUDIT_NAMES[a.action]||a.action)}</td><td>${esc(a.text)}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">還沒有紀錄</div>'}catch(err){$('auditList').innerHTML=`<div class="empty">${esc(err.message)}</div>`}
+});
 // 權限表：勾選先記在草稿，按「儲存權限」才送出
 $('permTable').addEventListener('change',e=>{const [r,k]=(e.target.dataset.perm||'').split(':');if(!r)return;const a=permDraft[r]||(permDraft[r]=[]);if(e.target.checked){if(!a.includes(k))a.push(k)}else permDraft[r]=a.filter(x=>x!==k)});
 $('permSave').addEventListener('click',async()=>{

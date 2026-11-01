@@ -60,6 +60,9 @@ button{cursor:pointer}
 .pad canvas{display:block;width:100%;height:200px;background:#fff;border:2px dashed var(--line);border-radius:10px;touch-action:none;margin-top:8px}
 .msg{text-align:center;color:var(--muted);padding:40px 16px}
 [hidden]{display:none!important}
+.photo{display:block;margin:10px 0 6px;font-size:.95rem}
+.photo input{display:block;margin-top:6px;max-width:100%}
+.photopv{display:block;max-width:100%;max-height:240px;border-radius:10px;margin:6px 0 10px}
 </style>
 <link rel="stylesheet" href="/theme.css">
 <script src="/brand.js"></script>
@@ -74,6 +77,9 @@ button{cursor:pointer}
       <h2>請核對品項和數量</h2>
       <label class="chk"><input type="checkbox" id="received"> 品項和數量正確</label>
       <input id="signer" placeholder="確認人姓名（選填）" maxlength="20" aria-label="確認人姓名">
+      <label class="photo"><span>📷 拍貨物照片（選填）</span><input type="file" id="photo" accept="image/*" capture="environment"></label>
+      <img id="photoPv" class="photopv" alt="剛拍的貨物照片" hidden>
+      <label class="chk"><input type="checkbox" id="absent"> 店家不在，只拍照留存（不用簽名）</label>
       <p class="err" id="err" role="alert"></p>
       <div class="acts"><button class="go" id="ok">確認</button></div>
     </div>
@@ -120,9 +126,22 @@ async function load(){
   if(D.confirmed)showDone(D.confirmed,true);
 }
 
-// 第一次按確認：檢查勾選，跳出簽名板
+// 貨物照片：手機照片很大，先縮到長邊 1280、JPEG 再傳
+let PHOTO='';
+$('photo').addEventListener('change',async e=>{
+  const f=e.target.files[0];PHOTO='';$('photoPv').hidden=true;if(!f)return;
+  try{
+    const img=await createImageBitmap(f),k=Math.min(1,1280/Math.max(img.width,img.height));
+    const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    for(const q of [0.7,0.5,0.35]){PHOTO=c.toDataURL('image/jpeg',q);if(PHOTO.length<650000)break}
+    $('photoPv').src=PHOTO;$('photoPv').hidden=false;$('err').textContent='';
+  }catch{$('err').textContent='照片讀不到，請再拍一次'}
+});
+// 第一次按確認：檢查勾選，跳出簽名板；店家不在的話直接用照片送出
 function submit(){
   if(!$('received').checked){$('err').textContent='請先核對，勾選「品項和數量正確」';return}
+  if($('absent').checked){if(!PHOTO){$('err').textContent='店家不在的話，請先拍一張貨物放置的照片';return}post(null);return}
   $('err').textContent='';$('padErr').textContent='';
   $('pad').classList.add('on');sizePad();
 }
@@ -142,12 +161,17 @@ $('padBack').addEventListener('click',()=>$('pad').classList.remove('on'));
 // 第二次按確認：連同簽名一起送出
 async function send(){
   if(!inked){$('padErr').textContent='請先簽名';return}
-  $('padOk').disabled=true;$('padOk').textContent='送出中…';$('padErr').textContent='';
+  post(cv.toDataURL('image/png'));
+}
+// png：簽名圖；null 是店家不在、只拍照
+async function post(png){
+  const btn=png?$('padOk'):$('ok'),errEl=png?$('padErr'):$('err');
+  btn.disabled=true;btn.textContent='送出中…';errEl.textContent='';
   try{
-    const r=await fetch('/api/sign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t:T,signer:$('signer').value.trim(),confirmed:true,png:cv.toDataURL('image/png')})});
+    const r=await fetch('/api/sign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t:T,signer:$('signer').value.trim(),confirmed:true,...(png?{png}:{absent:true}),...(PHOTO?{photo:PHOTO}:{})})});
     const j=await r.json();if(!r.ok)throw new Error(j.error||'送出失敗');
     $('pad').classList.remove('on');showDone(j.confirmed,false);
-  }catch(e){$('padErr').textContent=e.message;$('padOk').disabled=false;$('padOk').textContent='確認'}
+  }catch(e){errEl.textContent=e.message;btn.disabled=false;btn.textContent='確認'}
 }
 $('padOk').addEventListener('click',send);
 function showDone(s,already){
