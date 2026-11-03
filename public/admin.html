@@ -598,6 +598,33 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
 .addcat{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:18px}
 .addcat input{border:1px dashed var(--line);background:var(--surface);border-radius:10px;padding:9px 12px}
 .addcat button{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:0 14px;font-weight:700}
+.sfilt{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 10px}
+.sfilt button{border:1px solid var(--line);background:var(--surface);border-radius:16px;padding:4px 12px;font-size:.85rem;font-weight:700;color:var(--muted)}
+.sfilt button.on{background:var(--leaf);border-color:var(--leaf);color:#fff}
+.scard{background:var(--surface);border:1px solid var(--line);border-radius:12px;margin-bottom:6px}
+.scard.off .shead{opacity:.55}.scard.open{border-color:var(--leaf);box-shadow:0 1px 6px rgba(0,0,0,.06)}
+.shead{all:unset;box-sizing:border-box;width:100%;display:flex;align-items:center;gap:12px;padding:9px 12px;cursor:pointer}
+.shead:focus-visible{outline:2px solid var(--leaf);border-radius:12px}
+.shead .rt{flex:0 0 auto;min-width:2.4em;text-align:center;background:var(--bg);border-radius:8px;padding:3px 6px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted)}
+.shead .nm{flex:1;min-width:0}.shead .nm b{display:block;font-size:1rem}
+.shead .nm small{display:block;color:var(--muted);font-size:.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shead .tags{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.shead .st{font-style:normal;font-size:.75rem;font-weight:700;border-radius:999px;padding:2px 8px;background:var(--bg);color:var(--muted);white-space:nowrap}
+.shead .st.ok{background:var(--leaf-soft);color:var(--leaf)}.shead .st.warn{background:var(--tag-soft);color:var(--tag-ink)}
+.shead .st.off{background:var(--line);color:var(--ink)}.shead .st.dim{background:none;border:1px dashed var(--line)}
+.shead .chev{flex:0 0 auto;font-size:.8rem;color:var(--leaf);font-weight:700}
+.sedit{display:grid;grid-template-columns:90px 1fr 1fr;gap:8px 10px;padding:4px 12px 12px;border-top:1px solid var(--line);padding-top:10px}
+.sedit .f{display:flex;flex-direction:column;gap:2px;font-size:.78rem;color:var(--muted);min-width:0}
+.sedit .f.w{grid-column:1/-1}
+.sedit input,.sedit select{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 8px;font-size:.95rem;color:var(--ink)}
+.sedit .mem{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:.85rem;color:var(--muted);margin-top:2px}
+.sedit .mem span{background:var(--leaf-soft);color:var(--leaf);border-radius:12px;padding:1px 4px 1px 10px;font-weight:700}
+.sedit .mem span button{border:0;background:transparent;color:var(--alert);padding:0 4px}
+.sedit .mem span button.mv{color:var(--leaf);font-size:.78rem;text-decoration:underline}
+.sedit .mem label{margin-left:auto;display:flex;align-items:center;gap:4px}
+.sedit .mem input[type=checkbox]{width:auto}
+.sedit .x{border:0;background:none;color:var(--alert);font-weight:700}
+@media (max-width:640px){.shead{flex-wrap:wrap}.shead .tags{order:3;width:100%;justify-content:flex-start;padding-left:calc(2.4em + 24px)}.sedit{grid-template-columns:1fr 1fr}.sedit .f:nth-child(2){grid-column:1/-1}}
 .invbtn{border:1px dashed var(--leaf);background:none;color:var(--leaf);border-radius:12px;padding:1px 10px;font-weight:700;font-size:.82rem}
 .inv{text-align:center}
 .inv .invtip{color:var(--muted);font-size:.9rem;margin:6px 0 12px}
@@ -930,6 +957,7 @@ async function login(){
   catch(e){if(!/popup-closed|cancelled-popup/.test(e.code))$('loginErr').textContent=/popup-blocked/.test(e.code)?'登入視窗被擋住了，請允許這個網站開啟彈出視窗':'登入失敗：'+e.code}
   finally{$('loginBtn').disabled=false}
 }
+let sOpen=new Set(),sFilter='';
 let D=null,tab='board',openRow=null,openBill=null,P=[],S=[],pDirty=false,sDirty=false,date='',month='';
 
 async function api(method,body,q=''){
@@ -1695,20 +1723,37 @@ function renderStores(){
     <input id="pn-${p.userId}" placeholder="新店家店名" value="${esc(p.text||'')}" aria-label="新店家店名">
     <button class="go" data-approve="${p.userId}">開通</button><button class="no" data-reject="${p.userId}">拒絕</button></div></div>`).join(''):'';
   // 找店家：只畫找到的（data-i 還是原本的位置，改的時候才對得到）
-  const q=SQ('sqStores');
-  $('storeList').innerHTML=S.map((s,i)=>!storeHit(s,q)&&s.name?'':`<div class="srow ${s.on?'':'off'}">
-    <input type="number" min="1" inputmode="numeric" data-sf="route" data-i="${i}" value="${s.route}" aria-label="站號（送貨順序）" title="站號（送貨順序）">
-    <input type="text" data-sf="name" data-i="${i}" value="${esc(s.name)}" placeholder="店名" aria-label="店名">
-    <input type="text" data-sf="phone" data-i="${i}" value="${esc(s.phone)}" placeholder="電話" aria-label="電話">
-    <input type="text" class="wide" data-sf="address" data-i="${i}" value="${esc(s.address)}" placeholder="送貨地址" aria-label="送貨地址" style="grid-column:1/4">
-    ${s.code?`<div class="serp">ERP ${esc(s.code)}${s.chain?`・連鎖 ${esc(s.chain)}`:''}${s.contact?`・聯絡人 ${esc(s.contact)}`:''}</div>`:''}
-    <div class="mem">LINE：${s.members?.length?s.members.map(m=>`<span>${esc(m.name||'未命名')}<button data-move="${m.userId}" data-from="${s.id}" class="mv" aria-label="把 ${esc(m.name)} 換到別家店" title="換到別家店">換店</button><button data-unbind="${m.userId}" aria-label="解除 ${esc(m.name)}">✕</button></span>`).join(''):'還沒綁定'}${s.id&&D.stores.some(x=>x.id===s.id)?`<button class="invbtn" data-invite="${s.id}">＋ 邀請綁定</button>`:''}
-      <select data-sf="groupId" data-i="${i}" aria-label="${esc(s.name)} 的報價組"><option value="">基本價</option>${(D.priceGroups||[]).map(g=>`<option value="${g.id}" ${g.id===s.groupId?'selected':''}>${esc(g.name)}</option>`).join('')}</select>
-      <input type="text" data-sf="rep" data-i="${i}" value="${esc(s.rep??'')}" placeholder="業務" aria-label="${esc(s.name)} 負責的業務編號" title="負責的業務（例如 0～3）" style="width:4.5em" maxlength="4">
-      <select data-sf="pay" data-i="${i}" aria-label="${esc(s.name)} 付款方式"><option value="month" ${s.pay!=='cash'?'selected':''}>月結</option><option value="cash" ${s.pay==='cash'?'selected':''}>現結</option></select>
-      <label><input type="checkbox" data-sf="on" data-i="${i}" ${s.on?'checked':''}>合作中</label>
-      <button class="x" data-sdel="${i}" aria-label="刪除${esc(s.name)}">刪除</button></div>
-</div>`).join('')||'<div class="empty">還沒有店家。按「新增店家」，或等店家在 LINE 申請後在上面開通。</div>';
+  // 平常只列一行重點，按了才展開編輯（160 家店全部是輸入框太亂）
+  const q=SQ('sqStores'),unb=x=>!x.members?.length;
+  const cnt={all:S.length,unbound:S.filter(x=>x.on&&unb(x)).length,off:S.filter(x=>!x.on).length,cash:S.filter(x=>x.on&&x.pay==='cash').length};
+  const FL={all:'全部',unbound:'還沒綁 LINE',cash:'現結',off:'停止合作'};
+  const fit=x=>sFilter==='unbound'?x.on&&unb(x):sFilter==='off'?!x.on:sFilter==='cash'?x.on&&x.pay==='cash':true;
+  const gName=id=>(D.priceGroups||[]).find(g=>g.id===id)?.name;
+  const rows=S.map((s,i)=>{
+    if(s.name&&(!storeHit(s,q)||!fit(s)))return '';
+    const open=sOpen.has(i)||!s.name,g=gName(s.groupId);
+    const sub=[s.code&&`ERP ${esc(s.code)}`,s.chain&&`連鎖 ${esc(s.chain)}`,s.phone&&esc(s.phone),s.contact&&esc(s.contact)].filter(Boolean).join('・');
+    const tags=[!s.on&&'<i class="st off">停止合作</i>',
+      s.members?.length?`<i class="st ok">LINE ${s.members.length} 人</i>`:s.on&&'<i class="st warn">LINE 未綁</i>',
+      g&&`<i class="st">${esc(g)}</i>`,s.pay==='cash'&&'<i class="st">現結</i>',s.rep&&`<i class="st">業務 ${esc(s.rep)}</i>`,
+      s.on&&!s.address&&'<i class="st dim">沒地址</i>'].filter(Boolean).join('');
+    return `<div class="scard ${s.on?'':'off'} ${open?'open':''}">
+    <button type="button" class="shead" data-sopen="${i}" aria-expanded="${open}"><span class="rt" title="站號（送貨順序）">${s.route||'–'}</span>
+      <span class="nm"><b>${esc(s.name)||'（新店家）'}</b>${sub?`<small>${sub}</small>`:''}</span><span class="tags">${tags}</span><span class="chev">${open?'收起':'編輯'}</span></button>
+    ${open?`<div class="sedit">
+      <label class="f"><span>站號</span><input type="number" min="1" inputmode="numeric" data-sf="route" data-i="${i}" value="${s.route}" title="送貨順序"></label>
+      <label class="f"><span>店名</span><input type="text" data-sf="name" data-i="${i}" value="${esc(s.name)}" placeholder="店名"></label>
+      <label class="f"><span>電話</span><input type="text" data-sf="phone" data-i="${i}" value="${esc(s.phone)}" placeholder="電話" inputmode="tel"></label>
+      <label class="f w"><span>送貨地址</span><input type="text" data-sf="address" data-i="${i}" value="${esc(s.address)}" placeholder="送貨地址"></label>
+      <label class="f"><span>報價組</span><select data-sf="groupId" data-i="${i}"><option value="">基本價</option>${(D.priceGroups||[]).map(g=>`<option value="${g.id}" ${g.id===s.groupId?'selected':''}>${esc(g.name)}</option>`).join('')}</select></label>
+      <label class="f"><span>付款</span><select data-sf="pay" data-i="${i}"><option value="month" ${s.pay!=='cash'?'selected':''}>月結</option><option value="cash" ${s.pay==='cash'?'selected':''}>現結</option></select></label>
+      <label class="f"><span>業務編號</span><input type="text" data-sf="rep" data-i="${i}" value="${esc(s.rep??'')}" placeholder="例如 0～3" maxlength="4"></label>
+      <div class="mem">LINE：${s.members?.length?s.members.map(m=>`<span>${esc(m.name||'未命名')}<button data-move="${m.userId}" data-from="${s.id}" class="mv" aria-label="把 ${esc(m.name)} 換到別家店" title="換到別家店">換店</button><button data-unbind="${m.userId}" aria-label="解除 ${esc(m.name)}">✕</button></span>`).join(''):'還沒綁定'}${s.id&&D.stores.some(x=>x.id===s.id)?`<button class="invbtn" data-invite="${s.id}">＋ 邀請綁定</button>`:''}
+        <label><input type="checkbox" data-sf="on" data-i="${i}" ${s.on?'checked':''}>合作中</label>
+        <button class="x" data-sdel="${i}" aria-label="刪除${esc(s.name)}">刪除</button></div>
+    </div>`:''}</div>`}).join('');
+  $('storeList').innerHTML=(S.length?`<div class="sfilt">${Object.keys(FL).filter(k=>k==='all'||cnt[k]).map(k=>`<button type="button" data-sfilt="${k}" class="${(sFilter||'all')===k?'on':''}">${FL[k]} ${cnt[k]}</button>`).join('')}</div>`:'')
+    +(rows||(S.length?'<div class="empty">沒有符合的店家</div>':'<div class="empty">還沒有店家。按「新增店家」，或等店家在 LINE 申請後在上面開通。</div>'));
   $('saveS').disabled=!sDirty;$('sDirty').textContent=sDirty?'有尚未儲存的修改':'';
   renderGroups();
 }
@@ -2479,7 +2524,7 @@ document.addEventListener('toggle',e=>{const d=e.target;if(!d.dataset?.gfx)retur
 function fixSearch(t){const i=+t.dataset.fixq;fixQ[i]=t.value;renderGroups();const el=document.querySelector(`[data-fixq="${i}"]`);if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}}
 document.addEventListener('compositionend',e=>{if(e.target.dataset?.fixq!=null)fixSearch(e.target)});
 $('addG').addEventListener('click',()=>{G.push({id:'',name:'',type:'percent',value:90,fixed:{}});gDirty=true;renderGroups();document.querySelector(`[data-gf="name"][data-i="${G.length-1}"]`).focus()});
-$('addS').addEventListener('click',()=>{S.push({id:'',name:'',route:Math.max(0,...S.map(s=>s.route))+1,phone:'',address:'',on:true,members:[]});sDirty=true;renderStores();document.querySelector(`[data-sf="name"][data-i="${S.length-1}"]`).focus()});
+$('addS').addEventListener('click',()=>{sFilter='';$('sqStores').value='';S.push({id:'',name:'',route:Math.max(0,...S.map(s=>s.route))+1,phone:'',address:'',on:true,members:[]});sOpen.add(S.length-1);sDirty=true;renderStores();document.querySelector(`[data-sf="name"][data-i="${S.length-1}"]`).focus()});
 document.addEventListener('click',async e=>{
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.tab)showTab(b.dataset.tab);
@@ -2621,6 +2666,8 @@ document.addEventListener('click',async e=>{
   if(b.dataset.cdel){const c=b.dataset.cdel;if(P.some(p=>p.cat===c)){toast(`還有品項在「${c}」，先把品項改到別的分類`);return}if(confirm(`刪除分類「${c}」？`)){openCat=-1;saveCats(D.categories.filter(x=>x!==c),`已刪除分類「${c}」`)}}
   if(b.dataset.udel){const u=b.dataset.udel;if(P.some(p=>p.unit===u)){toast(`還有品項用「${u}」，先改成別的單位`);return}if(confirm(`刪除單位「${u}」？`))saveUnits(D.units.filter(x=>x!==u),`已刪除單位「${u}」`)}
   if(b.dataset.pal){choosePalette(b.dataset.pal);return}
+  if(b.dataset.sopen!=null){const i=+b.dataset.sopen;sOpen.has(i)?sOpen.delete(i):sOpen.add(i);renderStores();return}
+  if(b.dataset.sfilt){sFilter=b.dataset.sfilt==='all'?'':b.dataset.sfilt;renderStores();return}
   if(b.dataset.invite){if(sDirty){toast('請先按「儲存店家」');return}openInvite(b.dataset.invite);return}
   if(b.id==='invCopy'){try{await navigator.clipboard.writeText(INV.url);toast('已複製，可以貼到店家的 LINE 給他按')}catch{prompt('複製這個連結：',INV.url)}return}
   if(b.id==='invPrint'){printInvite();return}
@@ -2680,7 +2727,7 @@ document.addEventListener('click',async e=>{
   if(b.id==='xlsBills')xlsBills();
   if(b.id==='xlsReport')xlsReport();
   if(b.dataset.gdel){const i=+b.dataset.gdel;if(confirm(`刪除報價組「${G[i].name||'新報價組'}」？這組的店家會改回基本價。`)){G.splice(i,1);gDirty=true;renderGroups()}}
-  if(b.dataset.sdel){const i=+b.dataset.sdel;if(confirm(`刪除「${S[i].name||'新店家'}」？綁定的 LINE 帳號會一起解除。有訂單紀錄的店家不能刪，請改成取消「合作中」。`)){S.splice(i,1);sDirty=true;renderStores()}}
+  if(b.dataset.sdel){const i=+b.dataset.sdel;if(confirm(`刪除「${S[i].name||'新店家'}」？綁定的 LINE 帳號會一起解除。有訂單紀錄的店家不能刪，請改成取消「合作中」。`)){S.splice(i,1);sOpen.clear();sDirty=true;renderStores()}}
   if(b.dataset.approve)approve(b.dataset.approve);
   if(b.dataset.uoff){const off=b.dataset.off==='1';if(confirm(off?'停用後這個帳號就不能進後台，確定？':'恢復這個帳號？'))userAction({action:'updateUser',email:b.dataset.uoff,disabled:off},off?'已停用':'已恢復')}
   if(b.dataset.lradd){const r=D.lineReqs.find(x=>x.userId===b.dataset.lradd);try{const j=await api('POST',{action:'addLineUser',userId:r.userId,name:r.name,role:$('lr-'+r.userId).value});D.users=j.users;D.lineReqs=j.lineReqs;renderUsers();toast(`已加入，請「${r.name}」再按一次「用 LINE 登入」`)}catch(e){toast(e.message)}return}
