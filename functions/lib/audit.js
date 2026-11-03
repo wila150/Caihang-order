@@ -2,7 +2,7 @@
 //   auditLog/{自動 id} { at, who, action, text }
 import { getFirestore } from 'firebase-admin/firestore';
 
-export const AUDIT_ACTIONS = { price: '改價', delete: '刪單', payment: '收款', unpay: '刪收款', paid: '收清', pay: '結帳方式' };
+export const AUDIT_ACTIONS = { price: '改價', delete: '刪單', payment: '收款', unpay: '刪收款', paid: '收清', pay: '結帳方式', store: '換店' };
 
 // 記錄失敗不能擋住原本的動作
 export async function audit(me, action, text) {

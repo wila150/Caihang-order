@@ -359,6 +359,12 @@ export async function POST(request) {
         need(me, 'stores');
         await shop.reject(b.userId);
         return json({ ok: true });
+      case 'moveMember': {
+        need(me, 'stores');
+        const r = await shop.moveMember(String(b.userId || ''), String(b.storeId || ''));
+        await audit(me, 'store', `LINE「${r.member.name || '未命名'}」從「${r.from?.name || '（沒有）'}」換到「${r.to.name}」`);
+        return json({ ok: true });
+      }
       case 'unbind':
         need(me, 'stores');
         await shop.unbind(b.userId);

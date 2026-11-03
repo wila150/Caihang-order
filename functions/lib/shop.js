@@ -658,7 +658,14 @@ export async function selfJoin(userId, name, input) {
   if (await isPausedMember(userId)) throw new UserError('您的店家目前暫停叫貨，有問題請在 LINE 留言給老闆', 403);
   const stores = await getStores();
   const digits = (x) => String(x || '').replace(/\D/g, '');
-  let store = stores.find((x) => x.on && x.name === s.name && digits(x.phone) === digits(s.phone));
+  // 店名比對不管空白、括號、全半形；後台從 ERP 匯入的店常常沒電話
+  const norm = (x) => String(x || '').normalize('NFKC').replace(/[\s()（）【】\[\]\-_.・·]/g, '').toLowerCase();
+  const one = (list) => (list.length === 1 ? list[0] : null); // 對到好幾家就不猜，開新店給老闆看
+  const on = stores.filter((x) => x.on);
+  let match = '店名、電話跟這家一樣';
+  let store = on.find((x) => norm(x.name) === norm(s.name) && digits(x.phone) === digits(s.phone));
+  if (!store && (store = one(on.filter((x) => norm(x.name) === norm(s.name) && !digits(x.phone))))) match = '店名一樣，這家原本沒有電話';
+  if (!store && (store = one(on.filter((x) => digits(x.phone) && digits(x.phone) === digits(s.phone))))) match = `電話一樣，填的店名是「${s.name}」`;
   if (!store) store = { id: rid('s'), name: s.name, route: Math.max(0, ...stores.map((x) => x.route)) + 1, phone: s.phone, address: s.address, on: true, members: [], selfJoined: new Date().toISOString() };
   else store = { ...store, address: store.address || s.address };
   const pending = await data('pending/' + userId);
@@ -668,7 +675,22 @@ export async function selfJoin(userId, name, input) {
   batch.set(doc('members/' + userId), { storeId: store.id });
   batch.delete(doc('pending/' + userId));
   await batch.commit();
-  return { store, isNew: !stores.some((x) => x.id === store.id), order: pending?.order || '' };
+  return { store, isNew: !stores.some((x) => x.id === store.id), match, order: pending?.order || '' };
+}
+
+// 後台「換店」：把已經綁定的 LINE 移到另一家店（例如自己開通時多建了一家重複的店）
+export async function moveMember(userId, storeId) {
+  const to = await data('stores/' + storeId);
+  if (!to) throw new UserError('找不到要移過去的店家', 404);
+  const sid = (await data('members/' + userId))?.storeId;
+  const from = sid && sid !== storeId ? await data('stores/' + sid) : null;
+  const m = from?.members?.find((x) => x.userId === userId) || to.members?.find((x) => x.userId === userId) || { userId, name: '' };
+  const batch = db().batch();
+  if (from) batch.update(doc('stores/' + sid), { members: from.members.filter((x) => x.userId !== userId) });
+  batch.update(doc('stores/' + storeId), { members: [...(to.members || []).filter((x) => x.userId !== userId), m] });
+  batch.set(doc('members/' + userId), { storeId });
+  await batch.commit();
+  return { to, from, member: m };
 }
 
 /* ---------- 綁定 QR Code：每家店一組綁定碼，店家掃了送出「綁定 XXXX」就自動綁好（不用老闆開通）---------- */

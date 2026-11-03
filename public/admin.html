@@ -393,6 +393,7 @@ h2{font-size:1.15rem;margin:0 0 4px;font-weight:900}
 .srow .mem{grid-column:1/4;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:.85rem;color:var(--muted)}
 .srow .mem span{background:var(--leaf-soft);color:var(--leaf);border-radius:12px;padding:1px 4px 1px 10px;font-weight:700}
 .srow .mem span button{border:0;background:transparent;color:var(--alert);padding:0 4px}
+.srow .mem span button.mv{color:var(--leaf);font-size:.78rem;text-decoration:underline}
 .srow .mem label{margin-left:auto;display:flex;align-items:center;gap:4px}
 
 .login{max-width:340px;margin:80px auto;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px}
@@ -712,7 +713,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 110107</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 110302</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -1701,7 +1702,7 @@ function renderStores(){
     <input type="text" data-sf="phone" data-i="${i}" value="${esc(s.phone)}" placeholder="電話" aria-label="電話">
     <input type="text" class="wide" data-sf="address" data-i="${i}" value="${esc(s.address)}" placeholder="送貨地址" aria-label="送貨地址" style="grid-column:1/4">
     ${s.code?`<div class="serp">ERP ${esc(s.code)}${s.chain?`・連鎖 ${esc(s.chain)}`:''}${s.contact?`・聯絡人 ${esc(s.contact)}`:''}</div>`:''}
-    <div class="mem">LINE：${s.members?.length?s.members.map(m=>`<span>${esc(m.name||'未命名')}<button data-unbind="${m.userId}" aria-label="解除 ${esc(m.name)}">✕</button></span>`).join(''):'還沒綁定'}${s.id&&D.stores.some(x=>x.id===s.id)?`<button class="invbtn" data-invite="${s.id}">＋ 邀請綁定</button>`:''}
+    <div class="mem">LINE：${s.members?.length?s.members.map(m=>`<span>${esc(m.name||'未命名')}<button data-move="${m.userId}" data-from="${s.id}" class="mv" aria-label="把 ${esc(m.name)} 換到別家店" title="換到別家店">換店</button><button data-unbind="${m.userId}" aria-label="解除 ${esc(m.name)}">✕</button></span>`).join(''):'還沒綁定'}${s.id&&D.stores.some(x=>x.id===s.id)?`<button class="invbtn" data-invite="${s.id}">＋ 邀請綁定</button>`:''}
       <select data-sf="groupId" data-i="${i}" aria-label="${esc(s.name)} 的報價組"><option value="">基本價</option>${(D.priceGroups||[]).map(g=>`<option value="${g.id}" ${g.id===s.groupId?'selected':''}>${esc(g.name)}</option>`).join('')}</select>
       <input type="text" data-sf="rep" data-i="${i}" value="${esc(s.rep??'')}" placeholder="業務" aria-label="${esc(s.name)} 負責的業務編號" title="負責的業務（例如 0～3）" style="width:4.5em" maxlength="4">
       <select data-sf="pay" data-i="${i}" aria-label="${esc(s.name)} 付款方式"><option value="month" ${s.pay!=='cash'?'selected':''}>月結</option><option value="cash" ${s.pay==='cash'?'selected':''}>現結</option></select>
@@ -2422,7 +2423,7 @@ document.addEventListener('click',e=>{if(e.target.id==='pairCancel'){clearInterv
 // 回到這個畫面（從 LINE 切回來）馬上再問一次，不用等
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&pairPoll&&!$('pairBox').hidden)pairPoll()});
 // 操作紀錄：打開才載入（最近 300 筆）
-const AUDIT_NAMES={price:'改價',delete:'刪單',payment:'收款',unpay:'刪收款',paid:'收清',pay:'結帳方式'};
+const AUDIT_NAMES={price:'改價',delete:'刪單',payment:'收款',unpay:'刪收款',paid:'收清',pay:'結帳方式',store:'換店'};
 $('auditBox').addEventListener('toggle',async e=>{if(!e.target.open)return;
   try{const j=await api('GET',null,'?audit=1');$('auditList').innerHTML=j.audit.length?`<table><thead><tr><th>時間</th><th>誰</th><th>動作</th><th>內容</th></tr></thead><tbody>${j.audit.map(a=>`<tr><td>${new Date(a.at).toLocaleDateString('zh-TW',{timeZone:'Asia/Taipei',month:'numeric',day:'numeric'})} ${hm(a.at)}</td><td>${esc(a.who)}</td><td>${esc(AUDIT_NAMES[a.action]||a.action)}</td><td>${esc(a.text)}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">還沒有紀錄</div>'}catch(err){$('auditList').innerHTML=`<div class="empty">${esc(err.message)}</div>`}
 });
@@ -2689,6 +2690,17 @@ document.addEventListener('click',async e=>{
     openPerm='';userAction({action:'updateUser',email:b.dataset.upsave,add,remove},'個別權限已儲存，對方重新整理就生效');return}
   if(b.dataset.urm){if(confirm(`刪除 ${D.users.find(u=>u.email===b.dataset.urm)?.name||b.dataset.urm} 的後台權限？`))userAction({action:'removeUser',email:b.dataset.urm},'已刪除')}
   if(b.dataset.reject){if(confirm('拒絕這個申請？對方之後還可以再申請。')){try{await api('POST',{action:'reject',userId:b.dataset.reject});await load()}catch(err){toast(err.message)}}}
+  // 換店：LINE 綁錯店（例如自己開通時多建了一家重複的），移到正確的店家
+  if(b.dataset.move){if(sDirty){toast('請先儲存店家的修改');return}
+    const q=(prompt('要換到哪一家店？輸入店名、ERP 代號或電話')||'').trim().toLowerCase();if(!q)return;
+    const list=D.stores.filter(x=>x.id!==b.dataset.from&&[x.name,x.code,x.chain,x.phone].some(v=>String(v||'').toLowerCase().includes(q)));
+    if(!list.length){toast('找不到這家店');return}
+    let to=list[0];
+    if(list.length>1){const n=prompt(`找到 ${list.length} 家，輸入編號：\n${list.slice(0,15).map((x,i)=>`${i+1}. ${x.name}${x.code?`（${x.code}）`:''}${x.phone?` ${x.phone}`:''}${x.on?'':'（暫停）'}`).join('\n')}`);to=list[+n-1];if(!to)return}
+    const from=D.stores.find(x=>x.id===b.dataset.from);
+    if(!confirm(`把這個 LINE 從「${from?.name||''}」換到「${to.name}」？${from&&from.members.length===1?`\n換完「${from.name}」就沒有綁定的 LINE 了；如果它是重複多建的，可以再按它的「刪除」。`:''}`))return;
+    try{await api('POST',{action:'moveMember',userId:b.dataset.move,storeId:to.id});await load();toast(`已換到「${to.name}」`)}catch(err){toast(err.message)}
+    return}
   if(b.dataset.unbind){if(sDirty){toast('請先儲存店家的修改');return}if(confirm('解除這個 LINE 帳號的綁定？對方就不能再叫貨。')){try{await api('POST',{action:'unbind',userId:b.dataset.unbind});await load();toast('已解除')}catch(err){toast(err.message)}}}
 });
 document.addEventListener('input',e=>{

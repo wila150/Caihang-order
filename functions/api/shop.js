@@ -82,7 +82,7 @@ export async function POST(request) {
       const r = await shop.selfJoin(uid, await displayName(uid).catch(() => ''), body);
       const msg = r.isNew
         ? `🆕 新店家自己開通了：${r.store.name}\n電話 ${r.store.phone}\n地址 ${r.store.address}\n不認識的話到後台「店家」取消合作中：${originOf(request)}/admin`
-        : `🔗 ${r.store.name} 多綁了一個 LINE（填的店名、電話跟這家一樣）\n不是你們的人的話，到後台「店家」解除：${originOf(request)}/admin`;
+        : `🔗 ${r.store.name} 多綁了一個 LINE（${r.match}）\n不是你們的人的話，到後台「店家」解除：${originOf(request)}/admin`;
       await notifyAdmins(msg).catch((err) => console.error(err));
       return json({ ok: true, store: { name: r.store.name }, order: r.order, example: SHOP.example || PRESET.example });
     }
