@@ -22,8 +22,17 @@ export async function storeChat({ e, said, pb, action, store, uid, url, origin }
   if (said === '照上次叫' || action === 'repeat') {
     const D = openDate();
     const last = await shop.lastOrder(store.id, D);
-    if (!last) return { type: 'text', text: '還沒有之前的訂單可以照著叫，直接打字叫貨就好，例如「高麗菜10斤」。' };
     const pm = Object.fromEntries((await shop.getProducts()).map((p) => [p.id, p]));
+    if (!last) {
+      // 還沒在這裡叫過貨：ERP 銷售紀錄只有總金額、沒有每次的數量，不能照著叫；列出常買的，叫貨單「常用」直接選
+      const usual = (await shop.usualPids(store.id).catch(() => [])).filter((pid) => pm[pid]?.on).slice(0, 12);
+      if (!usual.length) return { type: 'text', text: '還沒有之前的訂單可以照著叫，直接打字叫貨就好，例如「高麗菜10斤」。' };
+      return {
+        type: 'text',
+        text: `還沒有在這裡叫過貨，所以沒有「上次」可以照著叫。\n您平常常買的：\n${usual.map((pid) => `・${pm[pid].name}`).join('\n')}\n\n點下面「打開叫貨單」，第一頁「常用」就是這些，選好數量送出就可以；也可以直接打字，例如「${pm[usual[0]].name} 10${pm[usual[0]].unit || ''}」。`,
+        quickReply: { items: [{ type: 'action', action: { type: 'uri', label: '🛒 打開叫貨單', uri: url } }] },
+      };
+    }
     const items = last.items.filter((i) => pm[i.pid]?.on).map((i) => ({ pid: i.pid, qty: i.qty }));
     const off = last.items.filter((i) => !pm[i.pid]?.on).map((i) => i.name);
     if (action === 'repeat') {
