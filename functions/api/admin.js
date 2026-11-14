@@ -1,6 +1,6 @@
 // 後台 API：用 Firebase 登入，依角色決定能做什麼（見 lib/auth.js）
 import { SHOP } from '../lib/config.js';
-import { saveRules, savePalette, savePrints } from '../lib/rules.js';
+import { saveRules, savePalette, savePrints, saveRepNames } from '../lib/rules.js';
 import { json, fail, readJSON, UserError } from '../lib/http.js';
 import { push, linkMenu } from '../lib/line.js';
 import { openDate, today, thisMonth, isDate, isMonth, cutoffLabel, getRulesNow } from '../lib/dates.js';
@@ -507,6 +507,9 @@ export async function POST(request) {
       case 'palette':
         need(me, 'users');
         return json({ palette: await savePalette(String(b.palette || '')) });
+      case 'repNames':
+        need(me, 'users');
+        return json({ reps: await saveRepNames(b.reps || {}) });
       case 'prints':
         need(me, 'users');
         return json({ prints: await savePrints(b.prints || {}) });

@@ -748,7 +748,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111407</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111408</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -782,6 +782,11 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
       <button id="savePrints" type="button">儲存</button>
     </form>
     </div></details>
+    <details class="sgrp" id="repNamesGrp"><summary><svg class="si" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="7" width="14" height="10" rx="1"/><path d="M15 10h4l3 3v4h-7z"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg><span class="st">業務名單<small>業務 1 是誰，畫面和列印顯示名字</small></span><svg class="sc" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></summary><div class="sgb">
+    <p class="sub">每個業務編號填名字，畫面和業務出貨明細表就會顯示「業務 1・阿忠」。不填就只顯示編號。</p>
+    <div id="repNameBox"></div>
+    <div class="bar"><button class="send" id="repNamesSave" type="button">儲存業務名單</button></div>
+    </div></details>
     <details class="sgrp"><summary><svg class="si" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="st">後台帳號<small id="hUsers"></small></span><svg class="sc" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></summary><div class="sgb">
     <form class="addform" id="userForm" onsubmit="return false">
       <label>登入用的 Email（Google 帳號，或自己用 Email 建的帳號）<input id="uEmail" type="email" autocomplete="off" placeholder="例如 xxx@gmail.com"></label>
@@ -794,6 +799,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
       <label>密碼（至少 6 個字）<input id="aPass" type="text" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="64"></label>
       <label>名字<input id="aName" placeholder="例如：司機阿忠" maxlength="20"></label>
       <label>角色<select id="aRole"></select></label>
+      <label>負責業務（登入後只看他的店）<select id="aRep"></select></label>
       <button id="addAcct" type="button">建立帳號</button>
     </form>
     <div class="users" id="userList"></div>
@@ -1583,6 +1589,9 @@ const DEPOT='臺中市東區樂業路105巷1號';
 // Google 地圖網址一次最多 9 個中途點，超過就拆段，下一段從上一段最後一家出發
 const mapLinks=(from,addrs)=>{const out=[];for(let i=0;i<addrs.length;i+=10){const seg=addrs.slice(i,i+10),u=new URLSearchParams({api:'1',origin:i?addrs[i-1]:from,destination:seg.at(-1),travelmode:'driving'});if(seg.length>1)u.set('waypoints',seg.slice(0,-1).join('|'));out.push('https://www.google.com/maps/dir/?'+u)}return out};
 const repOf=s=>s?.rep!=null&&s.rep!==''?String(s.rep):'未指定';
+// 業務名字在「設定 → 業務名單」填，顯示「業務 1・阿忠」
+const repName=r=>D?.rules?.reps?.[r]||'';
+const repLabel=r=>r==='未指定'?'沒指定業務':`業務 ${r}${repName(r)?'・'+repName(r):''}`;
 const repSort=(a,b)=>a==='未指定'?1:b==='未指定'?-1:a.localeCompare(b,'zh-Hant',{numeric:true});
 // 看哪位業務：這台裝置選過的優先，沒選過就用帳號設定的「負責業務」，都沒有就看全部
 let repOpen=new Set();
@@ -1593,7 +1602,7 @@ function repChips(list){
   const n={};for(const s of list)n[repOf(s)]=(n[repOf(s)]||0)+1;
   const reps=Object.keys(n).sort(repSort);if(reps.length<2&&curRep()==='all')return '';
   const cur=curRep();
-  return `<div class="sfilt" role="group" aria-label="看哪位業務"><button type="button" data-repv="all" class="${cur==='all'?'on':''}">全部業務（${list.length}）</button>${reps.map(r=>`<button type="button" data-repv="${esc(r)}" class="${cur===r?'on':''}">${r==='未指定'?'沒指定業務':'業務 '+esc(r)}（${n[r]}）</button>`).join('')}</div>`;
+  return `<div class="sfilt" role="group" aria-label="看哪位業務"><button type="button" data-repv="all" class="${cur==='all'?'on':''}">全部業務（${list.length}）</button>${reps.map(r=>`<button type="button" data-repv="${esc(r)}" class="${cur===r?'on':''}">${esc(repLabel(r))}（${n[r]}）</button>`).join('')}</div>`;
 }
 let runEdit={},runOpen=null,runDate=''; // runEdit[業務]＝還沒儲存的順序（店家 id）
 // 排到一半又有店叫貨：排好的照排，新叫的接在後面；換日期就重來
@@ -1609,14 +1618,14 @@ function renderMaps(){
   if(!all.length){$('mapBox').innerHTML='';return}
   const from=PR().address||DEPOT,total=reps.reduce((n,r)=>n+g[r].length,0);
   if(runOpen===null)runOpen=true;
-  $('mapBox').innerHTML=`<details class="bill" id="runBox" style="padding:10px 14px" ${runOpen?'open':''}><summary>🚚 今天要送的店（${cr==='all'?`${total} 家，依業務分`:`${cr==='未指定'?'沒指定業務':'業務 '+esc(cr)}：${reps.reduce((n,r)=>n+g[r].length,0)} 家`}）</summary>
+  $('mapBox').innerHTML=`<details class="bill" id="runBox" style="padding:10px 14px" ${runOpen?'open':''}><summary>🚚 今天要送的店（${cr==='all'?`${total} 家，依業務分`:`${esc(repLabel(cr))}：${reps.reduce((n,r)=>n+g[r].length,0)} 家`}）</summary>
     ${repChips(all.flatMap(r=>g[r].map(id=>sm[id])))}${reps.length?'':`<div class="empty">業務 ${esc(cr)} 今天沒有要送的店</div>`}
     <div style="font-size:.9em;color:var(--muted);margin:6px 0">按 ↑ ↓ 排送貨順序，排好按「儲存順序」。只會調這些店彼此的先後，今天沒叫貨的店位置不變。</div>
     ${reps.map(r=>{
       const ids=runIds(r,g).filter(id=>sm[id]),dirty=!!runEdit[r];
       const has=ids.filter(id=>sm[id].address),no=ids.filter(id=>!sm[id].address);
       const L=mapLinks(from,has.map(id=>sm[id].address));
-      return `<div class="run" style="margin-top:12px"><div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><b>${r==='未指定'?'沒指定業務':'業務 '+esc(r)}</b>（${ids.length} 家）
+      return `<div class="run" style="margin-top:12px"><div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><b>${esc(repLabel(r))}</b>（${ids.length} 家）
         ${L.map((u,i)=>`<a class="pbtn" target="_blank" rel="noopener" href="${esc(u)}">🗺 ${L.length>1?`第 ${i+1} 段`:'開地圖'}</a>`).join('')}
         ${dirty?`<button class="ok" data-runsave="${esc(r)}">儲存順序</button><button class="pbtn" data-runreset="${esc(r)}">還原</button>`:''}</div>
         <ol style="margin:6px 0 0;padding-left:1.6em">${ids.map((id,k)=>`<li style="padding:3px 0"><span style="display:inline-flex;gap:4px;vertical-align:middle"><button class="pbtn" style="padding:2px 10px" data-runmv="${esc(r)}" data-id="${id}" data-d="-1" ${k?'':'disabled'} aria-label="${esc(sm[id].name)}往前">↑</button><button class="pbtn" style="padding:2px 10px" data-runmv="${esc(r)}" data-id="${id}" data-d="1" ${k<ids.length-1?'':'disabled'} aria-label="${esc(sm[id].name)}往後">↓</button></span>
@@ -1851,7 +1860,7 @@ function renderStores(){
     const sub=[s.code&&`ERP ${esc(s.code)}`,s.chain&&`連鎖 ${esc(s.chain)}`,s.phone&&esc(s.phone),s.contact&&esc(s.contact)].filter(Boolean).join('・');
     const tags=[!s.on&&'<i class="st off">停止合作</i>',
       s.members?.length?`<i class="st ok">LINE ${s.members.length} 人</i>`:s.on&&'<i class="st warn">LINE 未綁</i>',
-      g&&`<i class="st">${esc(g)}</i>`,s.pay==='cash'&&'<i class="st">現結</i>',s.rep&&`<i class="st">業務 ${esc(s.rep)}</i>`,
+      g&&`<i class="st">${esc(g)}</i>`,s.pay==='cash'&&'<i class="st">現結</i>',s.rep&&`<i class="st">${esc(repLabel(String(s.rep)))}</i>`,
       s.on&&!s.address&&'<i class="st dim">沒地址</i>'].filter(Boolean).join('');
     return `<div class="scard ${s.on?'':'off'} ${open?'open':''}">
     <button type="button" class="shead" data-sopen="${i}" aria-expanded="${open}"><span class="rt" title="站號（送貨順序）">${s.route||'–'}</span>
@@ -1875,7 +1884,7 @@ function renderStores(){
   const fold=curRep()==='all'&&!q&&Object.keys(nRep).length>1;
   let lastRep=null;
   const rows=shown.map(i=>{const r=S[i].name?repOf(S[i]):null,open=!fold||!r||repOpen.has(r);
-    const h=r&&r!==lastRep?(fold?`<button type="button" class="repgrp" data-repgrp="${esc(r)}" aria-expanded="${open}" style="display:flex;justify-content:space-between;align-items:center;width:100%;margin:10px 0 6px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-weight:700;font-size:1.05rem;cursor:pointer"><span>${r==='未指定'?'沒指定業務':'業務 '+esc(r)}（${nRep[r]} 家）</span><span style="color:var(--muted);font-weight:400">${open?'收起 ▲':'展開 ▼'}</span></button>`:`<h3 style="margin:16px 0 6px">${r==='未指定'?'沒指定業務':'業務 '+esc(r)}（${nRep[r]} 家）</h3>`):'';
+    const h=r&&r!==lastRep?(fold?`<button type="button" class="repgrp" data-repgrp="${esc(r)}" aria-expanded="${open}" style="display:flex;justify-content:space-between;align-items:center;width:100%;margin:10px 0 6px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-weight:700;font-size:1.05rem;cursor:pointer"><span>${esc(repLabel(r))}（${nRep[r]} 家）</span><span style="color:var(--muted);font-weight:400">${open?'收起 ▲':'展開 ▼'}</span></button>`:`<h3 style="margin:16px 0 6px">${esc(repLabel(r))}（${nRep[r]} 家）</h3>`):'';
     if(r)lastRep=r;return h+(open?cards[i]:'')}).join('');
   $('storeList').innerHTML=(S.length?repChips(S.filter(x=>x.name)):'')+(S.length?`<div class="sfilt">${Object.keys(FL).filter(k=>k==='all'||cnt[k]).map(k=>`<button type="button" data-sfilt="${k}" class="${(sFilter||'all')===k?'on':''}">${FL[k]} ${cnt[k]}</button>`).join('')}</div>`:'')
     +(rows||(S.length?'<div class="empty">沒有符合的店家</div>':'<div class="empty">還沒有店家。按「新增店家」，或等店家在 LINE 申請後在上面開通。</div>'));
@@ -2224,7 +2233,14 @@ function setHints(){
   if(D.units&&$('hUnits'))$('hUnits').textContent=D.units.slice(0,8).join('、')+(D.units.length>8?` …共 ${D.units.length} 個`:'');
   if(r&&$('hPal'))$('hPal').textContent=PALS.find(p=>p[0]===(r.palette||'garlic'))?.[1]||'';
 }
-function renderUsers(){queueMicrotask(setHints);
+const repCodes=()=>[...new Set([...D.stores.map(x=>x.rep).filter(x=>x!=null&&x!=='').map(String),...Object.keys(D.rules?.reps||{})])].sort((a,b)=>a.localeCompare(b,'zh-Hant',{numeric:true}));
+function renderRepNames(){
+  if(!$('repNameBox'))return;
+  const cs=repCodes(),n={};for(const x of D.stores)if(x.rep!=null&&x.rep!=='')n[x.rep]=(n[x.rep]||0)+1;
+  $('repNameBox').innerHTML=cs.length?cs.map(r=>`<label class="f" style="display:flex;align-items:center;gap:8px;margin:6px 0"><span style="min-width:7em">業務 ${esc(r)}（${n[r]||0} 家）</span><input data-repname="${esc(r)}" value="${esc(repName(r))}" placeholder="名字，例如 阿忠" maxlength="12" style="flex:1"></label>`).join(''):'<div class="empty">店家還沒有業務編號。先到「店家」填業務編號，或匯入 ERP 客戶。</div>';
+}
+function renderUsers(){queueMicrotask(setHints);renderRepNames();
+  {const cur=$('aRep').value;$('aRep').innerHTML='<option value="">看全部業務</option>'+repCodes().map(r=>`<option value="${esc(r)}">${esc(repLabel(r))}</option>`).join('');$('aRep').value=cur}
   if(!$('aRole').options.length)$('aRole').innerHTML=Object.entries(D.roles).filter(([k])=>k!=='owner'&&k!=='engineer').map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
   if(!$('uRole').options.length)$('uRole').innerHTML=Object.entries(D.roles).filter(([k])=>k!=='owner'&&k!=='engineer').map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
   const roleOpts=Object.entries(D.roles).filter(([k])=>k!=='owner'&&k!=='engineer').map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
@@ -2233,7 +2249,7 @@ function renderUsers(){queueMicrotask(setHints);
   $('userList').innerHTML=(reqs?`<h4 style="margin:6px 0">等你加入（用 LINE 申請）</h4>${reqs}<h4 style="margin:12px 0 6px">已加入</h4>`:'')+D.users.map(u=>`<div class="urow ${u.disabled?'off':''}">
     <span><b>${esc(u.name||u.email)}</b><small>${u.email.startsWith('line:')?'LINE 登入':u.email.endsWith(ACCT)?'帳號 '+esc(u.email.slice(0,-ACCT.length)):esc(u.email)}${u.disabled?'・已停用':''}${u.email===D.me.email?'・你自己':''}</small></span>
     ${u.fixed?`<span>${D.roles.owner}</span><span class="meta">在 OWNER_EMAILS 設定</span>`:`<select data-urole="${esc(u.email)}" aria-label="${esc(u.email)} 的角色">${Object.entries(D.roles).filter(([k])=>k!=='owner'&&k!=='engineer').map(([k,v])=>`<option value="${k}" ${k===u.role?'selected':''}>${v}</option>`).join('')}</select>
-    ${u.fixed?'':`<select data-urep="${esc(u.email)}" aria-label="${esc(u.name||u.email)} 負責的業務" title="登入後預設只看這位業務的店"><option value="">看全部業務</option>${[...new Set(D.stores.map(x=>x.rep).filter(x=>x!=null&&x!=='').map(String))].sort((a,b)=>a.localeCompare(b,'zh-Hant',{numeric:true})).map(r=>`<option value="${esc(r)}" ${String(u.rep||'')===r?'selected':''}>只看業務 ${esc(r)}</option>`).join('')}</select>`}<span class="ua">${u.email.endsWith(ACCT)&&u.email!==D.me.email?`<button data-upass="${esc(u.email)}">改密碼</button>`:''}<button data-uperm="${esc(u.email)}">個別權限${(u.add?.length||u.remove?.length)?`（${(u.add?.length||0)+(u.remove?.length||0)}）`:''}</button><button data-uoff="${esc(u.email)}" data-off="${u.disabled?0:1}">${u.disabled?'恢復':'停用'}</button><button data-urm="${esc(u.email)}">刪除</button></span>${openPerm===u.email?userPermEditor(u):''}`}</div>`).join('')||'<div class="empty">還沒有其他帳號</div>';
+    ${u.fixed?'':`<select data-urep="${esc(u.email)}" aria-label="${esc(u.name||u.email)} 負責的業務" title="登入後預設只看這位業務的店"><option value="">看全部業務</option>${[...new Set(D.stores.map(x=>x.rep).filter(x=>x!=null&&x!=='').map(String))].sort((a,b)=>a.localeCompare(b,'zh-Hant',{numeric:true})).map(r=>`<option value="${esc(r)}" ${String(u.rep||'')===r?'selected':''}>只看${esc(repLabel(r))}</option>`).join('')}</select>`}<span class="ua">${u.email.endsWith(ACCT)&&u.email!==D.me.email?`<button data-upass="${esc(u.email)}">改密碼</button>`:''}<button data-uperm="${esc(u.email)}">個別權限${(u.add?.length||u.remove?.length)?`（${(u.add?.length||0)+(u.remove?.length||0)}）`:''}</button><button data-uoff="${esc(u.email)}" data-off="${u.disabled?0:1}">${u.disabled?'恢復':'停用'}</button><button data-urm="${esc(u.email)}">刪除</button></span>${openPerm===u.email?userPermEditor(u):''}`}</div>`).join('')||'<div class="empty">還沒有其他帳號</div>';
 }
 /* ---------- 權限：各角色勾選、個別員工多給／拿掉 ---------- */
 let permDraft=null,openPerm='';
@@ -2369,7 +2385,7 @@ function docRep(){
     const T=sortItems(Object.values(m));
     const stops=os.slice().sort((a,b)=>sm[a.storeId].route-sm[b.storeId].route||(a.seq||1)-(b.seq||1));
     return `<div class="doc erp break"><h3>業務出貨明細表</h3>
-    <div class="eh"><span>業務：${esc(r)}</span><span>出貨日期：${roc(D.date)}</span><span>${stops.length} 張單、${T.length} 個品項</span><span>列印時間：${rocNow()}</span></div>
+    <div class="eh"><span>業務：${esc(r==='未指定'?r:r+(repName(r)?'・'+repName(r):''))}</span><span>出貨日期：${roc(D.date)}</span><span>${stops.length} 張單、${T.length} 個品項</span><span>列印時間：${rocNow()}</span></div>
     <h4>裝車（依品項）</h4><div class="blocks">${T.map(t=>blk(t.rows.length>1?{...t,name:`${t.name}（共 ${qtyText(t.qty,t.unit)}）`}:t,sm)).join('')}</div>
     <h4>送貨順序</h4><table><thead><tr><th class="n">站</th><th>店家</th><th>地址／電話</th><th>品項</th></tr></thead><tbody>${stops.map(o=>{const s=sm[o.storeId];return `<tr><td class="n">${s.route}</td><td>${sname(s)}${(o.seq||1)>1?` 補單#${o.seq}`:''}</td><td>${esc(s.address||'')}${s.phone?`<br>${esc(s.phone)}`:''}</td><td>${sortItems(o.items).filter(i=>billQty(i)).map(i=>`${esc(i.name)} ${esc(qtyText(billQty(i),i.unit))}`).join('、')}</td></tr>`}).join('')}</tbody></table></div>`;
   }).join('');
@@ -2609,11 +2625,15 @@ $('addUser').addEventListener('click',()=>{
   if(!email){toast('請填對方的 Google 帳號 Email');$('uEmail').focus();return}
   userAction({action:'addUser',email,name,role},`已加入 ${email}，請對方用這個 Google 帳號登入後台`).then(()=>{$('uEmail').value=$('uName').value=''});
 });
+$('repNamesSave').addEventListener('click',async()=>{
+  const reps={};document.querySelectorAll('[data-repname]').forEach(x=>{if(x.value.trim())reps[x.dataset.repname]=x.value.trim()});
+  try{const j=await api('POST',{action:'repNames',reps});D.rules.reps=j.reps;renderAll();toast('業務名單已儲存')}catch(e){toast(e.message)}
+});
 $('addAcct').addEventListener('click',()=>{
-  const account=$('aAcct').value.trim(),password=$('aPass').value,name=$('aName').value.trim(),role=$('aRole').value;
+  const account=$('aAcct').value.trim(),password=$('aPass').value,name=$('aName').value.trim(),role=$('aRole').value,rep=$('aRep').value;
   if(!account){toast('請填帳號');$('aAcct').focus();return}
   if(password.length<6){toast('密碼至少要 6 個字');$('aPass').focus();return}
-  userAction({action:'addAccount',account,password,name,role},`已建立帳號 ${account.toLowerCase()}，把帳號和密碼交給對方，在登入畫面輸入就能登入`).then(()=>{$('aAcct').value=$('aPass').value=$('aName').value=''});
+  userAction({action:'addAccount',account,password,name,role,rep},`已建立帳號 ${account.toLowerCase()}，把帳號和密碼交給對方，在登入畫面輸入就能登入`).then(()=>{$('aAcct').value=$('aPass').value=$('aName').value=''});
 });
 document.addEventListener('click',async e=>{
   const b=e.target.closest('[data-upass]');if(!b)return;
@@ -2927,7 +2947,7 @@ document.addEventListener('change',async e=>{
   if(t.dataset.bought){const it=totals().find(x=>x.pid===t.dataset.bought),raw=t.value.trim(),q=raw===''?0:parseQty(raw,it.unit);if(raw&&!(q>0)){toast('數量看不懂，例如 20 或 2斤4兩');return}saveBought(it.pid,q)}
   if(t.dataset.expcat){const e=R.expenses.find(x=>x.id===t.dataset.expcat);expApi({action:'expenseUpdate',id:e.id,cat:t.value},`「${e.item}」改成${t.value}，下次會自動分到這類`)}
   if(t.dataset.urole){userAction({action:'updateUser',email:t.dataset.urole,role:t.value},'角色已更新')}
-  if(t.dataset.urep!=null){userAction({action:'updateUser',email:t.dataset.urep,rep:t.value},t.value?`登入後預設只看業務 ${t.value} 的店`:'登入後預設看全部業務')}
+  if(t.dataset.urep!=null){userAction({action:'updateUser',email:t.dataset.urep,rep:t.value},t.value?`登入後預設只看${repLabel(t.value)}的店`:'登入後預設看全部業務')}
 });
 document.addEventListener('click',e=>{const im=e.target.closest('img[data-zoom]');if(im){$('paper').innerHTML=`<div class="doc"><img src="${im.src}" style="width:100%" alt="店家傳的照片"></div>`;$('pv').classList.add('on')}});
 document.addEventListener('keydown',e=>{

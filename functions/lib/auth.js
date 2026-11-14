@@ -158,7 +158,7 @@ export async function updateUser({ email, role, disabled, add, remove, rep }) {
 export const ACCT_DOMAIN = 'acct.invalid';
 const isAcct = (email) => normEmail(email).endsWith('@' + ACCT_DOMAIN);
 const checkPass = (p) => { p = String(p || ''); if (p.length < 6 || p.length > 64) throw new UserError('密碼要 6～64 個字'); return p; };
-export async function addAccount({ account, name, role, password }) {
+export async function addAccount({ account, name, role, password, rep }) {
   account = String(account || '').trim().toLowerCase();
   if (!/^[a-z0-9][a-z0-9_.-]{2,19}$/.test(account)) throw new UserError('帳號要 3～20 個英文字母或數字（可以有 _ . -），例如 ajun01');
   if (!ROLES[role] || role === 'owner' || role === 'engineer') throw new UserError('請選角色');
@@ -170,7 +170,7 @@ export async function addAccount({ account, name, role, password }) {
     if (e?.code === 'auth/email-already-exists') throw new UserError(`帳號「${account}」已經有人用了，換一個`);
     throw e;
   }
-  await userDoc(email).set({ name, role, disabled: false, account });
+  await userDoc(email).set({ name, role, disabled: false, account, rep: String(rep || '').trim().slice(0, 4) });
   return listUsers();
 }
 // 老闆幫員工重設密碼（只限帳號密碼登入的帳號；Google、真的 Email 帳號由本人自己改）

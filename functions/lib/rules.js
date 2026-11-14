@@ -53,6 +53,20 @@ export async function saveRules(input) {
   return r;
 }
 
+// 業務名單：業務編號 → 名字（例如 { '1': '阿忠' }），畫面和列印顯示「業務 1・阿忠」
+export async function saveRepNames(input) {
+  const reps = {};
+  for (const [k, v] of Object.entries(input || {}).slice(0, 50)) {
+    const code = String(k).trim().slice(0, 4), name = String(v || '').trim().slice(0, 12);
+    if (code && name) reps[code] = name;
+  }
+  // 整個 reps 欄位換掉（拿掉的業務名字才會真的刪掉），其他設定不動
+  await getFirestore().doc('settings/rules').set({ reps }, { mergeFields: ['reps'] });
+  setRules({ reps });
+  cachedAt = Date.now();
+  return reps;
+}
+
 export async function savePrints(input) {
   const p = {
     on: [...new Set((Array.isArray(input.on) ? input.on : []).filter((k) => PRINTS.includes(k)))],
