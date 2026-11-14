@@ -754,7 +754,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111412</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111413</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -2589,10 +2589,10 @@ function openChooser(from){
   const [y,m]=D.month.split('-');
   $('pcBody').innerHTML=`<h4>${md(D.date)} 的貨（${allN} 張出貨單）</h4>
     ${PC_DAY.map((x,i)=>row(x,!allN?'這天沒有訂單':ok[x[0]]===false?'沒有權限':'')+(i?'':`<div class="seg"><label><input type="radio" name="pcSlip" value="slips" ${P.slipMode!=='slipsNew'?'checked':''}> 全部 ${allN} 張</label><label><input type="radio" name="pcSlip" value="slipsNew" ${P.slipMode==='slipsNew'?'checked':''}> 只印沒印過的 ${newN} 張</label>
-      <select id="pcSlipFmt" aria-label="出貨單格式"><option value="sys">系統格式</option><option value="erp" ${(P.slipFmt||pr.slip)==='erp'?'selected':''}>ERP 格式</option></select></div>`)).join('')}
+      <!-- 格式一律先帶「設定 → 列印」的，這次要換再改 --><select id="pcSlipFmt" aria-label="出貨單格式"><option value="sys">系統格式</option><option value="erp" ${pr.slip==='erp'?'selected':''}>ERP 格式</option></select></div>`)).join('')}
     ${mon?`<h4>${+m} 月對帳（${D.stores.filter(x=>monthRows(x.id).length).length} 家有送貨）</h4>
     ${PC_MONTH.map(x=>row(x,'')).join('')}
-    <div class="seg"><span>對帳單格式</span><select id="pcStmtFmt" aria-label="對帳單格式"><option value="sys">系統格式（每天一筆）</option><option value="erp" ${(P.stmtFmt||pr.stmt)==='erp'?'selected':''}>ERP 格式（品項明細）</option></select></div>`:''}
+    <div class="seg"><span>對帳單格式</span><select id="pcStmtFmt" aria-label="對帳單格式"><option value="sys">系統格式（每天一筆）</option><option value="erp" ${pr.stmt==='erp'?'selected':''}>ERP 格式（品項明細）</option></select></div>`:''}
     <p class="sub">換別天、別的月份：先在頁面上方改日期／月份再按列印。</p>`;
   $('pchoose').classList.add('on');
 }
