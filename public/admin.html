@@ -741,7 +741,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111402</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111403</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -1521,23 +1521,53 @@ function renderSlips(){
   const logs=[...D.orders,...(D.emptyLogs||[])].flatMap(o=>(o.log||[]).map(l=>({...l,store:(sm[o.storeId]?.name||'')+((o.seq||1)>1?` 補單#${o.seq}`:'')}))).sort((a,b)=>b.at.localeCompare(a.at));
   $('logBox').innerHTML=`<h3>改單紀錄</h3>`+(logs.length?`<ol>${logs.map(l=>`<li>${hm(l.at)} ${esc(l.store)}（${l.by==='後台'?`後台改${l.who?'・'+esc(l.who):''}`:l.by==='店家補單'?'店家補單':l.who?'店家・'+esc(l.who):'店家自己改'}）：${esc(l.text)}</li>`).join('')}</ol>`:`<div class="empty">這天沒有修改紀錄。</div>`);
 }
-/* ---------- 送貨地圖：每位業務今天要送的店，照站號串成 Google 地圖導航 ---------- */
+/* ---------- 今天要送的店：依業務分，司機用 ↑↓ 排順序，可以開 Google 地圖 ---------- */
 // 出發點用「設定 → 列印」的公司地址，沒填就用菜行（明恩農產行）
 const DEPOT='臺中市東區樂業路105巷1號';
 // Google 地圖網址一次最多 9 個中途點，超過就拆段，下一段從上一段最後一家出發
 const mapLinks=(from,addrs)=>{const out=[];for(let i=0;i<addrs.length;i+=10){const seg=addrs.slice(i,i+10),u=new URLSearchParams({api:'1',origin:i?addrs[i-1]:from,destination:seg.at(-1),travelmode:'driving'});if(seg.length>1)u.set('waypoints',seg.slice(0,-1).join('|'));out.push('https://www.google.com/maps/dir/?'+u)}return out};
-function renderMaps(){
+const repOf=s=>s?.rep!=null&&s.rep!==''?String(s.rep):'未指定';
+const repSort=(a,b)=>a==='未指定'?1:b==='未指定'?-1:a.localeCompare(b,'zh-Hant',{numeric:true});
+let runEdit={},runOpen=null,runDate=''; // runEdit[業務]＝還沒儲存的順序（店家 id）
+// 排到一半又有店叫貨：排好的照排，新叫的接在後面；換日期就重來
+const runIds=(r,g)=>{if(runDate!==D.date){runEdit={};runDate=D.date}const base=g[r]||[],e=runEdit[r];return e?[...e.filter(id=>base.includes(id)),...base.filter(id=>!e.includes(id))]:base};
+function runGroups(){
   const sm=SM(),g={};
-  for(const o of D.orders){const s=sm[o.storeId];if(!s||!o.items.some(i=>billQty(i)))continue;const r=s.rep!=null&&s.rep!==''?s.rep:'未指定';(g[r]??=new Map()).set(s.id,s)}
-  const reps=Object.keys(g).sort((a,b)=>a==='未指定'?1:b==='未指定'?-1:a.localeCompare(b,'zh-Hant',{numeric:true}));
-  if(!reps.length){$('mapBox').innerHTML='';return}
-  const from=PR().address||DEPOT;
-  $('mapBox').innerHTML=`<details class="bill" style="padding:10px 14px"><summary>🗺 送貨地圖（照站號，從${esc(from)}出發）</summary>${reps.map(r=>{
-    const st=[...g[r].values()].sort((a,b)=>a.route-b.route),has=st.filter(s=>s.address),no=st.filter(s=>!s.address);
-    const L=mapLinks(from,has.map(s=>s.address));
-    return `<div style="margin-top:10px"><b>${r==='未指定'?'沒指定業務':'業務 '+esc(r)}</b>：${st.length} 家 ${L.map((u,i)=>`<a class="pbtn" target="_blank" rel="noopener" href="${esc(u)}">${L.length>1?`第 ${i+1} 段`:'開地圖'}</a>`).join(' ')}
-      <div style="font-size:.9em;color:var(--muted)">${has.map(s=>`${s.route}.${esc(s.name)}`).join(' → ')}${no.length?`<br>⚠ 沒地址、地圖上沒有：${no.map(s=>esc(s.name)).join('、')}（到「店家」補地址）`:''}</div></div>`}).join('')}</details>`;
+  for(const o of D.orders){const s=sm[o.storeId];if(!s||!o.items.some(i=>billQty(i)))continue;(g[repOf(s)]??=new Set()).add(s.id)}
+  for(const r in g)g[r]=[...g[r]].sort((a,b)=>sm[a].route-sm[b].route);
+  return g;
 }
+function renderMaps(){
+  const sm=SM(),g=runGroups(),reps=Object.keys(g).sort(repSort);
+  if(!reps.length){$('mapBox').innerHTML='';return}
+  const from=PR().address||DEPOT,total=reps.reduce((n,r)=>n+g[r].length,0);
+  if(runOpen===null)runOpen=true;
+  $('mapBox').innerHTML=`<details class="bill" id="runBox" style="padding:10px 14px" ${runOpen?'open':''}><summary>🚚 今天要送的店（${total} 家，依業務分）</summary>
+    <div style="font-size:.9em;color:var(--muted);margin:6px 0">按 ↑ ↓ 排送貨順序，排好按「儲存順序」。只會調這些店彼此的先後，今天沒叫貨的店位置不變。</div>
+    ${reps.map(r=>{
+      const ids=runIds(r,g).filter(id=>sm[id]),dirty=!!runEdit[r];
+      const has=ids.filter(id=>sm[id].address),no=ids.filter(id=>!sm[id].address);
+      const L=mapLinks(from,has.map(id=>sm[id].address));
+      return `<div class="run" style="margin-top:12px"><div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><b>${r==='未指定'?'沒指定業務':'業務 '+esc(r)}</b>（${ids.length} 家）
+        ${L.map((u,i)=>`<a class="pbtn" target="_blank" rel="noopener" href="${esc(u)}">🗺 ${L.length>1?`第 ${i+1} 段`:'開地圖'}</a>`).join('')}
+        ${dirty?`<button class="ok" data-runsave="${esc(r)}">儲存順序</button><button class="pbtn" data-runreset="${esc(r)}">還原</button>`:''}</div>
+        <ol style="margin:6px 0 0;padding-left:1.6em">${ids.map((id,k)=>`<li style="padding:3px 0"><span style="display:inline-flex;gap:4px;vertical-align:middle"><button class="pbtn" style="padding:2px 10px" data-runmv="${esc(r)}" data-id="${id}" data-d="-1" ${k?'':'disabled'} aria-label="${esc(sm[id].name)}往前">↑</button><button class="pbtn" style="padding:2px 10px" data-runmv="${esc(r)}" data-id="${id}" data-d="1" ${k<ids.length-1?'':'disabled'} aria-label="${esc(sm[id].name)}往後">↓</button></span>
+          <b>${esc(sm[id].name)}</b> <small style="color:var(--muted)">${sm[id].address?esc(sm[id].address):'⚠ 沒地址'}</small></li>`).join('')}</ol>
+        ${no.length?`<div style="font-size:.9em;color:var(--muted)">⚠ 沒地址的 ${no.length} 家不會出現在地圖上，到「店家」補地址</div>`:''}</div>`}).join('')}</details>`;
+}
+document.addEventListener('toggle',e=>{if(e.target.id==='runBox')runOpen=e.target.open},true);
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('[data-runmv],[data-runsave],[data-runreset]');if(!b)return;
+  if(b.dataset.runreset!=null){delete runEdit[b.dataset.runreset];renderMaps();return}
+  if(b.dataset.runmv!=null){
+    const r=b.dataset.runmv,ids=runIds(r,runGroups()).slice(),i=ids.indexOf(b.dataset.id),j=i+ +b.dataset.d;
+    if(i<0||j<0||j>=ids.length)return;
+    [ids[i],ids[j]]=[ids[j],ids[i]];runEdit[r]=ids;renderMaps();
+    document.querySelector(`[data-runmv="${CSS.escape(r)}"][data-id="${CSS.escape(b.dataset.id)}"][data-d="${b.dataset.d}"]`)?.focus();return;
+  }
+  const r=b.dataset.runsave;b.disabled=true;
+  try{const j=await api('POST',{action:'routeOrder',rep:r,ids:runIds(r,runGroups())});D.stores=j.stores;if(!sDirty)S=structuredClone(D.stores);delete runEdit[r];renderAll();toast('送貨順序已儲存，出貨單、列印都會照這個順序')}catch(err){b.disabled=false;toast(err.message)}
+});
 /* ---------- 出貨單印過沒 ---------- */
 // 簽章：數量（q）和單價（p）分開，沒單價權限的人印的只記數量
 const sigQ=o=>sortItems(o.items).map(i=>`${i.pid}:${billQty(i)}`).join(',');
@@ -1747,7 +1777,7 @@ function renderStores(){
   const FL={all:'全部',unbound:'還沒綁 LINE',cash:'現結',off:'停止合作'};
   const fit=x=>sFilter==='unbound'?x.on&&unb(x):sFilter==='off'?!x.on:sFilter==='cash'?x.on&&x.pay==='cash':true;
   const gName=id=>(D.priceGroups||[]).find(g=>g.id===id)?.name;
-  const rows=S.map((s,i)=>{
+  const cards=S.map((s,i)=>{
     if(s.name&&(!storeHit(s,q)||!fit(s)))return '';
     const open=sOpen.has(i)||!s.name,g=gName(s.groupId);
     const sub=[s.code&&`ERP ${esc(s.code)}`,s.chain&&`連鎖 ${esc(s.chain)}`,s.phone&&esc(s.phone),s.contact&&esc(s.contact)].filter(Boolean).join('・');
@@ -1769,7 +1799,12 @@ function renderStores(){
       <div class="mem">LINE：${s.members?.length?s.members.map(m=>`<span>${esc(m.name||'未命名')}<button data-move="${m.userId}" data-from="${s.id}" class="mv" aria-label="把 ${esc(m.name)} 換到別家店" title="換到別家店">換店</button><button data-unbind="${m.userId}" aria-label="解除 ${esc(m.name)}">✕</button></span>`).join(''):'還沒綁定'}${s.id&&D.stores.some(x=>x.id===s.id)?`<button class="invbtn" data-invite="${s.id}">＋ 邀請綁定</button>`:''}
         <label><input type="checkbox" data-sf="on" data-i="${i}" ${s.on?'checked':''}>合作中</label>
         <button class="x" data-sdel="${i}" aria-label="刪除${esc(s.name)}">刪除</button></div>
-    </div>`:''}</div>`}).join('');
+    </div>`:''}</div>`});
+  // 同一位業務的店排在一起（業務 1、2、3…，沒指定的放最後），組裡照站號；剛新增還沒填店名的放最上面
+  const shown=S.map((s,i)=>i).filter(i=>cards[i]).sort((a,b)=>(!!S[b].name-!!S[a].name)||repSort(repOf(S[a]),repOf(S[b]))||(+S[a].route||0)-(+S[b].route||0));
+  const nRep={};for(const i of shown)if(S[i].name)nRep[repOf(S[i])]=(nRep[repOf(S[i])]||0)+1;
+  let lastRep=null;
+  const rows=shown.map(i=>{const r=S[i].name?repOf(S[i]):null,h=r&&r!==lastRep?`<h3 style="margin:16px 0 6px">${r==='未指定'?'沒指定業務':'業務 '+esc(r)}（${nRep[r]} 家）</h3>`:'';if(r)lastRep=r;return h+cards[i]}).join('');
   $('storeList').innerHTML=(S.length?`<div class="sfilt">${Object.keys(FL).filter(k=>k==='all'||cnt[k]).map(k=>`<button type="button" data-sfilt="${k}" class="${(sFilter||'all')===k?'on':''}">${FL[k]} ${cnt[k]}</button>`).join('')}</div>`:'')
     +(rows||(S.length?'<div class="empty">沒有符合的店家</div>':'<div class="empty">還沒有店家。按「新增店家」，或等店家在 LINE 申請後在上面開通。</div>'));
   $('saveS').disabled=!sDirty;$('sDirty').textContent=sDirty?'有尚未儲存的修改':'';

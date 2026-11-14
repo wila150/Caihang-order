@@ -417,6 +417,13 @@ export async function POST(request) {
         await audit(me, 'payment', `${sn} 支票${b.cashed !== false ? '已兌現' : '改回未兌現'}`);
         return json({ paid });
       }
+      // 送貨順序：看得到出貨單的人（司機也可以）就能排
+      case 'routeOrder': {
+        need(me, 'view');
+        const stores = await shop.setRouteOrder(b.rep, b.ids);
+        await audit(me, 'route', `排送貨順序（${b.rep === '未指定' ? '沒指定業務' : '業務 ' + b.rep}）：${(b.ids || []).map((id) => stores.find((x) => x.id === id)?.name).filter(Boolean).join(' → ')}`);
+        return json({ stores });
+      }
       case 'storePayDay':
         need(me, 'bills');
         return json({ stores: await shop.setStorePayDay(b.storeId, b.day) });

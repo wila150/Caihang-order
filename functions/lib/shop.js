@@ -586,6 +586,31 @@ export async function importErpStores(input, { dry = true } = {}) {
   return { ...summary, stores: await getStores() };
 }
 
+// 司機排送貨順序：ids 是同一位業務今天要送的店（排好的順序）。
+// 只調這幾家彼此的先後，其他沒叫貨的店位置不動；業務是 1～9 就把這位業務的店重編成 101、102…（業務 2 是 201…）
+export async function setRouteOrder(rep, ids) {
+  rep = clean(rep, 4);
+  if (!Array.isArray(ids) || !ids.length || ids.length > 300) throw new UserError('順序格式錯誤');
+  const all = await getStores();
+  const mine = all.filter((s) => (s.rep || '') === (rep === '未指定' ? '' : rep));
+  const want = ids.map(String).filter((id, i, a) => a.indexOf(id) === i && mine.some((s) => s.id === id));
+  if (!want.length) throw new UserError('找不到這些店，請重新整理再排');
+  // 原本這幾家佔的位置，照新順序填回去
+  const set = new Set(want), slots = mine.map((s, i) => (set.has(s.id) ? i : -1)).filter((i) => i >= 0);
+  const byId = new Map(mine.map((s) => [s.id, s]));
+  const next = mine.slice();
+  slots.forEach((pos, k) => { next[pos] = byId.get(want[k]); });
+  const block = /^[1-9]$/.test(rep) && next.length < 100;
+  const oldRoutes = slots.map((i) => mine[i].route);
+  const batch = db().batch();
+  next.forEach((s, i) => {
+    const route = block ? +rep * 100 + i + 1 : slots.includes(i) ? oldRoutes[slots.indexOf(i)] : s.route;
+    if (route !== s.route) batch.update(doc('stores/' + s.id), { route });
+  });
+  await batch.commit();
+  return getStores();
+}
+
 export async function setStorePay(sid, pay) {
   const ref = doc('stores/' + clean(sid, 40));
   if (!(await ref.get()).exists) throw new UserError('找不到這家店', 404);
