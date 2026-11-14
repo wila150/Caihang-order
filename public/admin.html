@@ -695,6 +695,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
     <h2>各店出貨單</h2>
     <div id="printNote"></div>
     <div class="bar"><button class="pbtn" data-pchoose="slips">🖨 列印…</button><button class="pbtn" id="xlsDay">匯出 Excel</button><button class="send" id="receiptAll">全部傳 LINE 收據／出貨單</button></div>
+    <div id="mapBox"></div>
     <div id="issueBox"></div>
     <input id="sqSlips" class="psearch" type="search" placeholder="找店家（店名、ERP 代號、連鎖店）" aria-label="找店家（店名、ERP 代號、連鎖店）">
     <div class="slips" id="slipBox"></div>
@@ -740,7 +741,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111401</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111402</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -1515,10 +1516,27 @@ function renderSlips(){
         ${extra}${slipActs(s,o,k)}</div>`;
     });
   }).join('')+(q?(stores.length?'':'<div class="slipnone">找不到這家店</div>'):noneN?`<div class="slipnone">還有 ${noneN} 家還沒叫貨。要幫哪家電話叫貨或加品項，在上面「找店家」打店名。</div>`:'')||'<div class="empty">還沒有店家，到「店家」新增。</div>';
-  renderPrintNote();
+  renderPrintNote();renderMaps();
   const sm=SM();
   const logs=[...D.orders,...(D.emptyLogs||[])].flatMap(o=>(o.log||[]).map(l=>({...l,store:(sm[o.storeId]?.name||'')+((o.seq||1)>1?` 補單#${o.seq}`:'')}))).sort((a,b)=>b.at.localeCompare(a.at));
   $('logBox').innerHTML=`<h3>改單紀錄</h3>`+(logs.length?`<ol>${logs.map(l=>`<li>${hm(l.at)} ${esc(l.store)}（${l.by==='後台'?`後台改${l.who?'・'+esc(l.who):''}`:l.by==='店家補單'?'店家補單':l.who?'店家・'+esc(l.who):'店家自己改'}）：${esc(l.text)}</li>`).join('')}</ol>`:`<div class="empty">這天沒有修改紀錄。</div>`);
+}
+/* ---------- 送貨地圖：每位業務今天要送的店，照站號串成 Google 地圖導航 ---------- */
+// 出發點用「設定 → 列印」的公司地址，沒填就用菜行（明恩農產行）
+const DEPOT='臺中市東區樂業路105巷1號';
+// Google 地圖網址一次最多 9 個中途點，超過就拆段，下一段從上一段最後一家出發
+const mapLinks=(from,addrs)=>{const out=[];for(let i=0;i<addrs.length;i+=10){const seg=addrs.slice(i,i+10),u=new URLSearchParams({api:'1',origin:i?addrs[i-1]:from,destination:seg.at(-1),travelmode:'driving'});if(seg.length>1)u.set('waypoints',seg.slice(0,-1).join('|'));out.push('https://www.google.com/maps/dir/?'+u)}return out};
+function renderMaps(){
+  const sm=SM(),g={};
+  for(const o of D.orders){const s=sm[o.storeId];if(!s||!o.items.some(i=>billQty(i)))continue;const r=s.rep!=null&&s.rep!==''?s.rep:'未指定';(g[r]??=new Map()).set(s.id,s)}
+  const reps=Object.keys(g).sort((a,b)=>a==='未指定'?1:b==='未指定'?-1:a.localeCompare(b,'zh-Hant',{numeric:true}));
+  if(!reps.length){$('mapBox').innerHTML='';return}
+  const from=PR().address||DEPOT;
+  $('mapBox').innerHTML=`<details class="bill" style="padding:10px 14px"><summary>🗺 送貨地圖（照站號，從${esc(from)}出發）</summary>${reps.map(r=>{
+    const st=[...g[r].values()].sort((a,b)=>a.route-b.route),has=st.filter(s=>s.address),no=st.filter(s=>!s.address);
+    const L=mapLinks(from,has.map(s=>s.address));
+    return `<div style="margin-top:10px"><b>${r==='未指定'?'沒指定業務':'業務 '+esc(r)}</b>：${st.length} 家 ${L.map((u,i)=>`<a class="pbtn" target="_blank" rel="noopener" href="${esc(u)}">${L.length>1?`第 ${i+1} 段`:'開地圖'}</a>`).join(' ')}
+      <div style="font-size:.9em;color:var(--muted)">${has.map(s=>`${s.route}.${esc(s.name)}`).join(' → ')}${no.length?`<br>⚠ 沒地址、地圖上沒有：${no.map(s=>esc(s.name)).join('、')}（到「店家」補地址）`:''}</div></div>`}).join('')}</details>`;
 }
 /* ---------- 出貨單印過沒 ---------- */
 // 簽章：數量（q）和單價（p）分開，沒單價權限的人印的只記數量
