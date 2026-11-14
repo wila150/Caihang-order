@@ -92,7 +92,7 @@ export async function signedIn(request) {
   let user;
   try { user = await getAuth().verifyIdToken(token); } catch { throw new UserError('登入已過期，請重新登入', 401); }
   const email = normEmail(user.email);
-  if (!email || !user.email_verified) throw new UserError('這個帳號的 Email 沒有驗證，請用 Google 帳號登入', 403);
+  if (!email || !user.email_verified) throw new UserError('這個帳號的 Email 還沒驗證，請到信箱點驗證連結再登入', 403);
   const doc = (await userDoc(email).get()).data();
   const role = ownerEmails().includes(email) ? 'owner' : engineerEmails().includes(email) ? 'engineer' : doc?.disabled ? null : doc?.role;
   if (!role) throw new UserError(`${email} 沒有後台權限，請老闆到「帳號」加入這個 Email`, 403);
