@@ -542,8 +542,8 @@ export async function saveStores(input) {
 
 // 只改一家店的付款方式（對帳頁直接切換）
 // 匯入 ERP 客戶（後台店家頁上傳 ERP 的「客戶資料一覽表」）
-// rows：[{ code, name, chain, phone, contact }]。照客戶代號比對，沒代號的舊店家同名就接上；新的店家先排在最後一站、月結、合作中
-// 電話 ERP 沒填就不動（老闆可能在後台補過），LINE 綁定、報價組、站號都不動
+// rows：[{ code, name, chain, phone, contact, address, rep }]。照客戶代號比對，沒代號的舊店家同名就接上；新的店家先排在最後一站、月結、合作中
+// 電話、地址、業務編號 ERP 沒填就不動（老闆可能在後台補過），LINE 綁定、報價組、站號都不動
 export async function importErpStores(input, { dry = true } = {}) {
   if (!Array.isArray(input) || !input.length) throw new UserError('Excel 裡沒有讀到客戶，請確認是 ERP 的客戶資料一覽表');
   if (input.length > 2000) throw new UserError('客戶太多了（最多 2000 家）');
@@ -554,26 +554,28 @@ export async function importErpStores(input, { dry = true } = {}) {
   const byCode = new Map(old.filter((s) => s.code).map((s) => [s.code, s]));
   const byName = new Map(old.filter((s) => !s.code).map((s) => [s.name, s]));
   const seen = new Set(), list = [];
-  let add = 0, update = 0, link = 0;
+  let add = 0, update = 0, link = 0, addr = 0, reps = 0;
   const stamp = rid('s');
   for (const [i, r] of input.entries()) {
     const code = clean(r.code, 30), name = clean(r.name, 30);
     if (!code || !name || seen.has(code)) continue;
     seen.add(code);
     const erp = { code, name, chain: clean(r.chain, 30), contact: clean(r.contact, 30) };
-    const phone = clean(r.phone, 20);
+    const phone = clean(r.phone, 20), address = clean(r.address, 80), rep = clean(r.rep, 4);
     const o = byCode.get(code) || byName.get(name);
     if (o) {
       o.code ? update++ : link++;
+      if (address && address !== o.address) addr++;
+      if (rep && rep !== o.rep) reps++;
       byName.delete(o.name);
-      list.push({ ...o, ...erp, phone: phone || o.phone || '' });
+      list.push({ ...o, ...erp, phone: phone || o.phone || '', address: address || o.address || '', rep: rep || o.rep || '' });
     } else {
       add++;
-      list.push({ id: stamp + i.toString(36), ...erp, route: 99, phone, address: '', on: true, groupId: chainGroup[erp.chain] || '', pay: 'month', members: [] });
+      list.push({ id: stamp + i.toString(36), ...erp, route: 99, phone, address, rep, on: true, groupId: chainGroup[erp.chain] || '', pay: 'month', members: [] });
     }
   }
   if (!list.length) throw new UserError('Excel 裡沒有讀到客戶，請確認是 ERP 的客戶資料一覽表');
-  const summary = { add, update, link, total: old.length + add };
+  const summary = { add, update, link, addr, reps, total: old.length + add };
   if (dry) return summary;
   // 一次最多寫 500 筆
   for (let k = 0; k < list.length; k += 400) {

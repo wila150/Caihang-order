@@ -740,7 +740,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 110304</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111401</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -1259,14 +1259,14 @@ async function importErp(file){
     toast(`已匯入，現在共 ${j.total} 個品項${j.removed?`（刪掉 ${j.removed} 個）`:''}`);
   }catch(e){toast(e.message)}
 }
-// 匯入 ERP 客戶：客戶資料一覽表（客戶代號、客戶簡稱、連鎖店、電話、聯絡人）
+// 匯入 ERP 客戶：客戶資料一覽表（客戶代號、客戶簡稱、連鎖店、電話、聯絡人；有「地址」「業務編號」欄也會帶進來）
 async function importErpStores(file){
   if(sDirty){toast('請先按「儲存店家」');return}
-  const rows=(await readErp(file,{code:'客戶代號',name:'客戶簡稱',chain:'連鎖店',tel:'電話一',mobile:'手機',contact:'聯絡人'}))?.map(r=>({...r,phone:r.tel||r.mobile}));
+  const rows=(await readErp(file,{code:'客戶代號',name:'客戶簡稱',chain:'連鎖店',tel:'電話一',mobile:'手機',contact:'聯絡人',address:'地址',rep:'業務編號'}))?.map(r=>({...r,phone:r.tel||r.mobile}));
   if(!rows)return;
   try{
     const s=await api('POST',{action:'importErpStores',rows});
-    if(!confirm(`ERP 檔有 ${rows.length} 家客戶：\n・新增 ${s.add} 家（合作中、月結，站號先排最後）\n・更新 ${s.update} 家\n・接上原本的店家 ${s.link} 家（LINE 綁定、報價組都保留）\n\n確定匯入？`))return;
+    if(!confirm(`ERP 檔有 ${rows.length} 家客戶：\n・新增 ${s.add} 家（合作中、月結，站號先排最後）\n・更新 ${s.update} 家\n・接上原本的店家 ${s.link} 家（LINE 綁定、報價組都保留）${s.addr?`\n・補上／更新地址 ${s.addr} 家`:''}${s.reps?`\n・補上／更新業務編號 ${s.reps} 家`:''}\n\n確定匯入？`))return;
     toast('匯入中…');
     const j=await api('POST',{action:'importErpStores',rows,dry:false});
     await load();toast(`已匯入，現在共 ${j.stores.length} 家店`);
