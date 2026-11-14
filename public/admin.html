@@ -647,13 +647,13 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   <button id="loginBtn" class="gbtn" type="button"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>用 Google 登入</button>
   <div id="pairBox" hidden></div>
   <button id="lineBtn" class="gbtn lbtn" type="button"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5C6.2 2.5 1.5 6.3 1.5 11c0 4.2 3.7 7.7 8.8 8.4.3.1.8.2.9.5.1.3.1.7 0 1l-.1.9c0 .3-.2 1 .9.5s6-3.5 8.2-6.1c1.5-1.6 2.3-3.3 2.3-5.2 0-4.7-4.7-8.5-10.5-8.5z"/></svg>用 LINE 登入</button>
-  <details class="emailLogin" id="emailBox" style="width:100%;margin-top:6px"><summary style="cursor:pointer;color:var(--muted);text-align:center">用 Email 和密碼登入</summary>
+  <details class="emailLogin" id="emailBox" style="width:100%;margin-top:6px"><summary style="cursor:pointer;color:var(--muted);text-align:center">用帳號密碼登入</summary>
     <div style="display:grid;gap:8px;margin-top:10px">
-      <input id="emEmail" type="email" autocomplete="username" placeholder="Email" aria-label="Email">
+      <input id="emEmail" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="帳號（或 Email）" aria-label="帳號或 Email">
       <input id="emPass" type="password" autocomplete="current-password" placeholder="密碼（至少 6 個字）" aria-label="密碼">
       <button id="emLogin" class="gbtn" type="button">登入</button>
-      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><button id="emSignup" class="lnk" type="button">第一次用：建立帳號</button><button id="emForgot" class="lnk" type="button">忘記密碼</button></div>
-      <small style="color:var(--muted)">建立帳號後要到信箱點驗證連結，再請老闆在「設定 → 後台帳號」加入這個 Email，才能登入。</small>
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><button id="emSignup" class="lnk" type="button">用 Email 建立帳號</button><button id="emForgot" class="lnk" type="button">忘記密碼</button></div>
+      <small style="color:var(--muted)">帳號密碼由老闆在「設定 → 後台帳號」建立，忘記密碼請老闆重設。也可以用自己的 Email 建立帳號（要到信箱點驗證連結，再請老闆加入這個 Email）。</small>
     </div></details>
 </form>
 
@@ -749,7 +749,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111404</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111405</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -789,6 +789,13 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
       <label>名字<input id="uName" placeholder="例如：會計小美"></label>
       <label>角色<select id="uRole"></select></label>
       <button id="addUser" type="button">加入</button>
+    </form>
+    <form class="addform" id="acctForm" onsubmit="return false">
+      <label>或建立帳號密碼（員工不用 Email）：帳號<input id="aAcct" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="英文或數字，例如 ajun01" maxlength="20"></label>
+      <label>密碼（至少 6 個字）<input id="aPass" type="text" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="64"></label>
+      <label>名字<input id="aName" placeholder="例如：司機阿忠" maxlength="20"></label>
+      <label>角色<select id="aRole"></select></label>
+      <button id="addAcct" type="button">建立帳號</button>
     </form>
     <div class="users" id="userList"></div>
     </div></details>
@@ -967,12 +974,14 @@ async function login(){
   finally{$('loginBtn').disabled=false}
 }
 /* ---------- 用 Email＋密碼登入：自己建帳號，驗證信箱後，老闆在「設定」加入這個 Email 才有權限 ---------- */
-const EM_ERR={'auth/invalid-email':'Email 格式不對','auth/missing-password':'請輸入密碼','auth/weak-password':'密碼至少要 6 個字','auth/email-already-in-use':'這個 Email 已經建立過帳號，直接登入；忘記密碼按「忘記密碼」','auth/invalid-credential':'Email 或密碼不對','auth/wrong-password':'Email 或密碼不對','auth/user-not-found':'Email 或密碼不對','auth/too-many-requests':'試太多次了，請等幾分鐘再試','auth/network-request-failed':'網路不穩，請再試一次'};
+const EM_ERR={'auth/invalid-login-credentials':'帳號或密碼不對','auth/invalid-email':'Email 格式不對','auth/missing-password':'請輸入密碼','auth/weak-password':'密碼至少要 6 個字','auth/email-already-in-use':'這個 Email 已經建立過帳號，直接登入；忘記密碼按「忘記密碼」','auth/invalid-credential':'帳號或密碼不對','auth/wrong-password':'帳號或密碼不對','auth/user-not-found':'帳號或密碼不對','auth/user-disabled':'這個帳號被停用了，請找老闆','auth/too-many-requests':'試太多次了，請等幾分鐘再試','auth/network-request-failed':'網路不穩，請再試一次'};
 const emMsg=e=>EM_ERR[e?.code]||('失敗：'+(e?.code||e?.message||''));
-const emVals=()=>({email:$('emEmail').value.trim(),pass:$('emPass').value});
+// 沒有 @ 就是老闆建的帳號（存成 帳號@acct.invalid）
+const ACCT='@acct.invalid';
+const emVals=()=>{const v=$('emEmail').value.trim();return {raw:v,email:v&&!v.includes('@')?v.toLowerCase()+ACCT:v,pass:$('emPass').value}};
 async function emLogin(){
   const {email,pass}=emVals();$('loginErr').textContent='';
-  if(!email||!pass){$('loginErr').textContent='請輸入 Email 和密碼';return}
+  if(!email||!pass){$('loginErr').textContent='請輸入帳號和密碼';return}
   $('emLogin').disabled=true;
   try{
     sessionStorage.removeItem('lineLogin');LS.set('');
@@ -986,7 +995,8 @@ async function emLogin(){
   finally{$('emLogin').disabled=false}
 }
 async function emSignup(){
-  const {email,pass}=emVals();$('loginErr').textContent='';
+  const {raw,email,pass}=emVals();$('loginErr').textContent='';
+  if(raw&&!raw.includes('@')){$('loginErr').textContent='沒有 Email 的帳號要請老闆在「設定 → 後台帳號」建立；這裡只能用自己的 Email 建帳號';return}
   if(!email||!pass){$('loginErr').textContent='請輸入要用的 Email 和密碼，再按「建立帳號」';return}
   try{
     const {user}=await FB.createUserWithEmailAndPassword(FB.auth,email,pass);
@@ -995,8 +1005,9 @@ async function emSignup(){
   }catch(e){$('loginErr').textContent=emMsg(e)}
 }
 async function emForgot(){
-  const {email}=emVals();$('loginErr').textContent='';
-  if(!email){$('loginErr').textContent='請先在上面填 Email，再按「忘記密碼」';return}
+  const {raw,email}=emVals();$('loginErr').textContent='';
+  if(!raw){$('loginErr').textContent='請先在上面填帳號或 Email，再按「忘記密碼」';return}
+  if(!raw.includes('@')){$('loginErr').textContent='帳號密碼登入的帳號，請老闆在「設定 → 後台帳號」按「改密碼」幫你重設';return}
   try{await FB.sendPasswordResetEmail(FB.auth,email);$('loginErr').textContent=`如果 ${email} 有建立帳號，重設密碼的信已經寄出，照信裡的連結設定新密碼（找不到請看垃圾郵件）`}
   catch(e){$('loginErr').textContent=emMsg(e)}
 }
@@ -2197,14 +2208,15 @@ function setHints(){
   if(r&&$('hPal'))$('hPal').textContent=PALS.find(p=>p[0]===(r.palette||'garlic'))?.[1]||'';
 }
 function renderUsers(){queueMicrotask(setHints);
+  if(!$('aRole').options.length)$('aRole').innerHTML=Object.entries(D.roles).filter(([k])=>k!=='owner'&&k!=='engineer').map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
   if(!$('uRole').options.length)$('uRole').innerHTML=Object.entries(D.roles).filter(([k])=>k!=='owner'&&k!=='engineer').map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
   const roleOpts=Object.entries(D.roles).filter(([k])=>k!=='owner'&&k!=='engineer').map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
   // 用 LINE 申請登入的人：選角色加入，或忽略
   const reqs=(D.lineReqs||[]).map(r=>`<div class="urow"><span><b>${esc(r.name||'（未知名稱）')}</b><small>用 LINE 申請登入・${esc(hm(r.at))}</small></span><select id="lr-${esc(r.userId)}" aria-label="${esc(r.name)} 的角色">${roleOpts}</select><span class="ua"><button data-lradd="${esc(r.userId)}">加入</button><button data-lrdrop="${esc(r.userId)}">忽略</button></span></div>`).join('');
   $('userList').innerHTML=(reqs?`<h4 style="margin:6px 0">等你加入（用 LINE 申請）</h4>${reqs}<h4 style="margin:12px 0 6px">已加入</h4>`:'')+D.users.map(u=>`<div class="urow ${u.disabled?'off':''}">
-    <span><b>${esc(u.name||u.email)}</b><small>${u.email.startsWith('line:')?'LINE 登入':esc(u.email)}${u.disabled?'・已停用':''}${u.email===D.me.email?'・你自己':''}</small></span>
+    <span><b>${esc(u.name||u.email)}</b><small>${u.email.startsWith('line:')?'LINE 登入':u.email.endsWith(ACCT)?'帳號 '+esc(u.email.slice(0,-ACCT.length)):esc(u.email)}${u.disabled?'・已停用':''}${u.email===D.me.email?'・你自己':''}</small></span>
     ${u.fixed?`<span>${D.roles.owner}</span><span class="meta">在 OWNER_EMAILS 設定</span>`:`<select data-urole="${esc(u.email)}" aria-label="${esc(u.email)} 的角色">${Object.entries(D.roles).filter(([k])=>k!=='owner'&&k!=='engineer').map(([k,v])=>`<option value="${k}" ${k===u.role?'selected':''}>${v}</option>`).join('')}</select>
-    <span class="ua"><button data-uperm="${esc(u.email)}">個別權限${(u.add?.length||u.remove?.length)?`（${(u.add?.length||0)+(u.remove?.length||0)}）`:''}</button><button data-uoff="${esc(u.email)}" data-off="${u.disabled?0:1}">${u.disabled?'恢復':'停用'}</button><button data-urm="${esc(u.email)}">刪除</button></span>${openPerm===u.email?userPermEditor(u):''}`}</div>`).join('')||'<div class="empty">還沒有其他帳號</div>';
+    <span class="ua">${u.email.endsWith(ACCT)&&u.email!==D.me.email?`<button data-upass="${esc(u.email)}">改密碼</button>`:''}<button data-uperm="${esc(u.email)}">個別權限${(u.add?.length||u.remove?.length)?`（${(u.add?.length||0)+(u.remove?.length||0)}）`:''}</button><button data-uoff="${esc(u.email)}" data-off="${u.disabled?0:1}">${u.disabled?'恢復':'停用'}</button><button data-urm="${esc(u.email)}">刪除</button></span>${openPerm===u.email?userPermEditor(u):''}`}</div>`).join('')||'<div class="empty">還沒有其他帳號</div>';
 }
 /* ---------- 權限：各角色勾選、個別員工多給／拿掉 ---------- */
 let permDraft=null,openPerm='';
@@ -2579,6 +2591,18 @@ $('addUser').addEventListener('click',()=>{
   const email=$('uEmail').value.trim(),name=$('uName').value.trim(),role=$('uRole').value;
   if(!email){toast('請填對方的 Google 帳號 Email');$('uEmail').focus();return}
   userAction({action:'addUser',email,name,role},`已加入 ${email}，請對方用這個 Google 帳號登入後台`).then(()=>{$('uEmail').value=$('uName').value=''});
+});
+$('addAcct').addEventListener('click',()=>{
+  const account=$('aAcct').value.trim(),password=$('aPass').value,name=$('aName').value.trim(),role=$('aRole').value;
+  if(!account){toast('請填帳號');$('aAcct').focus();return}
+  if(password.length<6){toast('密碼至少要 6 個字');$('aPass').focus();return}
+  userAction({action:'addAccount',account,password,name,role},`已建立帳號 ${account.toLowerCase()}，把帳號和密碼交給對方，在登入畫面按「用帳號密碼登入」`).then(()=>{$('aAcct').value=$('aPass').value=$('aName').value=''});
+});
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('[data-upass]');if(!b)return;
+  const email=b.dataset.upass,acct=email.slice(0,-ACCT.length),pw=prompt(`幫「${acct}」設定新密碼（至少 6 個字）：`);
+  if(pw==null)return;if(pw.length<6){toast('密碼至少要 6 個字');return}
+  try{await api('POST',{action:'accountPassword',email,password:pw});toast(`「${acct}」的密碼改好了，已經登入的裝置要用新密碼重新登入`)}catch(err){toast(err.message)}
 });
 $('logout').addEventListener('click',()=>{if(pDirty||sDirty){if(!confirm('有尚未儲存的修改，確定登出？'))return}logout()});
 $('date').addEventListener('change',e=>{if(e.target.value){date=e.target.value;openRow=null;load()}});

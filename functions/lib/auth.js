@@ -150,9 +150,42 @@ export async function updateUser({ email, role, disabled, add, remove }) {
   return listUsers();
 }
 
+/* ---------- 帳號密碼登入（沒有 Email 的員工）----------
+// 老闆在後台建帳號、設密碼（員工不能自己建，不然別人可以先搶註帳號名稱）。
+// Firebase 登入一定要 Email，所以存成「帳號@acct.invalid」（.invalid 是保留網域，不會真的寄信），建立時就標成已驗證 */
+export const ACCT_DOMAIN = 'acct.invalid';
+const isAcct = (email) => normEmail(email).endsWith('@' + ACCT_DOMAIN);
+const checkPass = (p) => { p = String(p || ''); if (p.length < 6 || p.length > 64) throw new UserError('密碼要 6～64 個字'); return p; };
+export async function addAccount({ account, name, role, password }) {
+  account = String(account || '').trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9_.-]{2,19}$/.test(account)) throw new UserError('帳號要 3～20 個英文字母或數字（可以有 _ . -），例如 ajun01');
+  if (!ROLES[role] || role === 'owner' || role === 'engineer') throw new UserError('請選角色');
+  const email = `${account}@${ACCT_DOMAIN}`;
+  name = String(name || '').trim().slice(0, 20);
+  try {
+    await getAuth().createUser({ email, password: checkPass(password), emailVerified: true, displayName: name || account });
+  } catch (e) {
+    if (e?.code === 'auth/email-already-exists') throw new UserError(`帳號「${account}」已經有人用了，換一個`);
+    throw e;
+  }
+  await userDoc(email).set({ name, role, disabled: false, account });
+  return listUsers();
+}
+// 老闆幫員工重設密碼（只限帳號密碼登入的帳號；Google、真的 Email 帳號由本人自己改）
+export async function setAccountPassword({ email, password }) {
+  email = normEmail(email);
+  if (!isAcct(email)) throw new UserError('只有「帳號密碼登入」的帳號可以在這裡改密碼');
+  const u = await getAuth().getUserByEmail(email).catch(() => null);
+  if (!u) throw new UserError('找不到這個帳號', 404);
+  await getAuth().updateUser(u.uid, { password: checkPass(password) });
+  await getAuth().revokeRefreshTokens(u.uid); // 改密碼後，已經登入的裝置要重新登入
+}
+
 export async function removeUser({ email }) {
   email = normEmail(email);
   if (ownerEmails().includes(email) || engineerEmails().includes(email)) throw new UserError('老闆和工程師帳號不能刪除（在 OWNER_EMAILS、ENGINEER_EMAILS 設定）');
   await userDoc(email).delete();
+  // 帳號密碼登入的：登入帳號一起刪，帳號名稱之後可以再用
+  if (isAcct(email)) { const u = await getAuth().getUserByEmail(email).catch(() => null); if (u) await getAuth().deleteUser(u.uid); }
   return listUsers();
 }

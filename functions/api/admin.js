@@ -6,7 +6,7 @@ import { push, linkMenu } from '../lib/line.js';
 import { openDate, today, thisMonth, isDate, isMonth, cutoffLabel, getRulesNow } from '../lib/dates.js';
 import * as shop from '../lib/shop.js';
 import * as ex from '../lib/expense.js';
-import { signedIn, need, can, ROLES, PERMS, DEFAULT_CAN, getRolePerms, saveRolePerms, listUsers, addUser, addLineUser, updateUser, removeUser } from '../lib/auth.js';
+import { signedIn, need, can, ROLES, PERMS, DEFAULT_CAN, getRolePerms, saveRolePerms, listUsers, addUser, addLineUser, updateUser, removeUser, addAccount, setAccountPassword } from '../lib/auth.js';
 import { lineLogin, lineRequests, dropRequest, pairStart, pairCheck } from '../lib/linelogin.js';
 import { remindText, statementMessage, approvedText, dunningText, receiptMessage, slipMessage } from '../lib/messages.js';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -596,6 +596,19 @@ export async function POST(request) {
       case 'addUser':
         need(me, 'users');
         return json({ users: await addUser(b) });
+      // 帳號密碼登入：老闆建帳號、重設密碼
+      case 'addAccount': {
+        need(me, 'users');
+        const users = await addAccount(b);
+        await audit(me, 'user', `建立帳號 ${String(b.account || '').trim().toLowerCase()}（${b.name || ''}）`);
+        return json({ users });
+      }
+      case 'accountPassword':
+        need(me, 'users');
+        if (b.email === me.email) throw new UserError('不能改自己的帳號');
+        await setAccountPassword(b);
+        await audit(me, 'user', `重設 ${String(b.email || '').split('@')[0]} 的密碼`);
+        return json({ ok: true });
       case 'updateUser':
         need(me, 'users');
         if (b.email === me.email) throw new UserError('不能改自己的帳號');
