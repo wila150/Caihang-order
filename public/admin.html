@@ -754,7 +754,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111413</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111414</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -2258,7 +2258,7 @@ function renderUsers(){queueMicrotask(setHints);renderRepNames();
   $('userList').innerHTML=(reqs?`<h4 style="margin:6px 0">等你加入（用 LINE 申請）</h4>${reqs}<h4 style="margin:12px 0 6px">已加入</h4>`:'')+D.users.map(u=>`<div class="urow ${u.disabled?'off':''}">
     <span><b>${esc(u.name||u.email)}</b><small>${u.email.startsWith('line:')?'LINE 登入':u.email.endsWith(ACCT)?'帳號 '+esc(u.email.slice(0,-ACCT.length)):esc(u.email)}${u.disabled?'・已停用':''}${u.email===D.me.email?'・你自己':''}</small></span>
     ${u.fixed?`<span>${D.roles.owner}</span><span class="meta">在 OWNER_EMAILS 設定</span>`:`<select data-urole="${esc(u.email)}" aria-label="${esc(u.email)} 的角色">${Object.entries(D.roles).filter(([k])=>k!=='owner'&&k!=='engineer').map(([k,v])=>`<option value="${k}" ${k===u.role?'selected':''}>${v}</option>`).join('')}</select>
-    ${u.fixed?'':`<select data-urep="${esc(u.email)}" aria-label="${esc(u.name||u.email)} 負責的業務" title="登入後預設只看這位業務的店"><option value="">看全部業務</option>${[...new Set(D.stores.map(x=>x.rep).filter(x=>x!=null&&x!=='').map(String))].sort((a,b)=>a.localeCompare(b,'zh-Hant',{numeric:true})).map(r=>`<option value="${esc(r)}" ${String(u.rep||'')===r?'selected':''}>只看${esc(repLabel(r))}</option>`).join('')}</select>`}<span class="ua">${u.email.endsWith(ACCT)&&u.email!==D.me.email?`<button data-upass="${esc(u.email)}">改密碼</button>`:''}<button data-uperm="${esc(u.email)}">個別權限${(u.add?.length||u.remove?.length)?`（${(u.add?.length||0)+(u.remove?.length||0)}）`:''}</button><button data-uoff="${esc(u.email)}" data-off="${u.disabled?0:1}">${u.disabled?'恢復':'停用'}</button><button data-urm="${esc(u.email)}">刪除</button></span>${openPerm===u.email?userPermEditor(u):''}`}</div>`).join('')||'<div class="empty">還沒有其他帳號</div>';
+    ${u.fixed?'':`<select data-urep="${esc(u.email)}" aria-label="${esc(u.name||u.email)} 負責的業務" title="登入後預設只看這位業務的店"><option value="">看全部業務</option>${[...new Set(D.stores.map(x=>x.rep).filter(x=>x!=null&&x!=='').map(String))].sort((a,b)=>a.localeCompare(b,'zh-Hant',{numeric:true})).map(r=>`<option value="${esc(r)}" ${String(u.rep||'')===r?'selected':''}>只看${esc(repLabel(r))}</option>`).join('')}</select>`}<span class="ua">${u.email.endsWith(ACCT)&&u.email!==D.me.email?`<button data-upass="${esc(u.email)}">改密碼</button>`:''}${u.role==='manager'?'':`<button data-uperm="${esc(u.email)}">個別權限${(u.add?.length||u.remove?.length)?`（${(u.add?.length||0)+(u.remove?.length||0)}）`:''}</button>`}<button data-uoff="${esc(u.email)}" data-off="${u.disabled?0:1}">${u.disabled?'恢復':'停用'}</button><button data-urm="${esc(u.email)}">刪除</button></span>${openPerm===u.email?userPermEditor(u):''}`}</div>`).join('')||'<div class="empty">還沒有其他帳號</div>';
 }
 /* ---------- 權限：各角色勾選、個別員工多給／拿掉 ---------- */
 let permDraft=null,openPerm='';

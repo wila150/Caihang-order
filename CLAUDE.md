@@ -42,7 +42,7 @@ LINE 叫貨＋後台管理系統：店家在 LINE 官方帳號叫貨（打字、
 - 菜行品項分類改用 ERP 的 35 類（F01 葉菜類～F35 花，見 `config.js`），不再用 POS 的 7 類
 
 ## 訪談單進度（2026-11-01）
-- 已做：權限可勾選（`settings/perms`＋個人 add/remove，`auth.js` PERMS/DEFAULT_CAN）、老闆娘角色（manager）、訂單來源 `source`（line/phone）、操作紀錄（`lib/audit.js`，auditLog）、業務編號 `store.rep`＋業務出貨明細表（列印 rep）、簽收拍照（signPhotos/{日期_單}，店家不在可只拍照）、支票票號／兌現日（payment.check）、店家收帳日 `store.payDay`、廠商付款日（settings/suppliers payDay）、首頁「今天要處理」（`lib/todo.js`，`?todo=1`）、價格走勢（`?priceHistory=`）、補送／換貨單（order.free，單價 0，改價和報價組都跳過）
+- 已做：權限可勾選（`settings/perms`＋個人 add/remove，`auth.js` PERMS/DEFAULT_CAN）、老闆娘角色（manager）（2026-11-14 改成跟老闆一樣全部權限，含設定和帳號）、訂單來源 `source`（line/phone）、操作紀錄（`lib/audit.js`，auditLog）、業務編號 `store.rep`＋業務出貨明細表（列印 rep）、簽收拍照（signPhotos/{日期_單}，店家不在可只拍照）、支票票號／兌現日（payment.check）、店家收帳日 `store.payDay`、廠商付款日（settings/suppliers payDay）、首頁「今天要處理」（`lib/todo.js`，`?todo=1`）、價格走勢（`?priceHistory=`）、補送／換貨單（order.free，單價 0，改價和報價組都跳過）
 - 補單收費、補送和換貨不收費（客戶確認）
 - 截單時間客戶要晚上 12 點：程式支援（設定填 00:00 存成 24:00），正式站的設定要老闆在後台改
 - 首頁卡住的原因：PM()／prodIdx 每次排序都重建 2 千筆對照表，已改成快取（2200 品項 9.8 秒 → 0.24 秒）；`PM`、`SM` 要用快取版，不要在迴圈裡重建

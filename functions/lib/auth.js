@@ -8,7 +8,7 @@ import { verifySession, lineRole, dropRequest } from './linelogin.js';
 export const ROLES = {
   owner: '老闆',
   engineer: '工程師',
-  manager: '老闆娘', // 訪談：接單、價格、對帳、收付款、記帳、報表都能做，帳號和設定還是只有老闆
+  manager: '老闆娘', // 跟老闆一樣全部都能管（含設定、帳號、權限），2026-11-14 客戶要求
   accounting: '會計',
   warehouse: '理貨',
   driver: '司機',
@@ -29,7 +29,6 @@ export const PERMS = {
 };
 // 老闆還沒改過時的預設（跟原本寫死的一樣）
 export const DEFAULT_CAN = {
-  manager: ['view', 'prices', 'bills', 'statement', 'editOrders', 'deleteOrders', 'products', 'stores', 'remind', 'sign'],
   accounting: ['view', 'bills', 'prices', 'editOrders', 'deleteOrders', 'products', 'remind', 'statement', 'sign'],
   warehouse: ['view', 'editOrders', 'remind', 'sign'],
   driver: ['view', 'sign'],
@@ -55,7 +54,7 @@ export async function saveRolePerms(roles) {
 
 // 這個人實際有的權限：角色的權限＋個人多給的（add）－個人拿掉的（remove）
 async function effectivePerms(role, doc) {
-  if (role === 'owner' || role === 'engineer') return ['*'];
+  if (role === 'owner' || role === 'engineer' || role === 'manager') return ['*'];
   const base = (await getRolePerms())[role] || [];
   const add = cleanPerms(doc?.add), remove = cleanPerms(doc?.remove);
   return [...new Set([...base, ...add])].filter((p) => !remove.includes(p));
