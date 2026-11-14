@@ -32,8 +32,10 @@ const menus = {
   store: {
     size: { width: 2500, height: 1686 }, selected: true, name: '店家選單', chatBarText: '叫貨選單',
     // 2 排 × 3 格
+    // 「我要叫貨」直接打開叫貨頁（LIFF 用 LINE 身分認店家）；沒設定 LIFF 才傳文字讓機器人回連結
     areas: ['我要叫貨', '拍照叫貨', '照上次叫', '我的訂單', '我的帳款', '回報問題'].map((t, i) => ({
-      bounds: { x: X[i % 3], y: i < 3 ? 0 : 843, width: W[i % 3], height: 843 }, action: msg(t),
+      bounds: { x: X[i % 3], y: i < 3 ? 0 : 843, width: W[i % 3], height: 843 },
+      action: t === '我要叫貨' && env.LIFF_ID ? { type: 'uri', label: t, uri: `https://liff.line.me/${env.LIFF_ID}?order=1` } : msg(t),
     })),
   },
   boss: {

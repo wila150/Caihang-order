@@ -158,7 +158,7 @@ const jinOf=q=>Math.floor(q+1e-9),liangOf=q=>Math.round((q-jinOf(q))*16)%16;
 function toast(t){const el=$('toast');el.textContent=t;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),2600)}
 // 從 LIFF（liff.line.me/…?t=…）打開時，參數先包在 liff.state 裡
 const Q=(()=>{const q=new URLSearchParams(location.search),st=q.get('liff.state');return st?new URLSearchParams(st.replace(/^[^?]*\?/,'')):q})();
-const T=Q.get('t')||'',DRAFT=Q.get('d')||'';
+let T=Q.get('t')||'';const DRAFT=Q.get('d')||'';
 // order：叫配送日的貨；addon：截單後補單（另開一張，跟原本的訂單分開）
 let MODE='order';
 let D=null,cart={},cat='常叫',liffReady=false;
@@ -243,7 +243,22 @@ async function join(){
   }catch(e){$('jErr').textContent=e.message;$('jGo').disabled=false}
 }
 $('join').addEventListener('submit',join);
+// 圖文選單「我要叫貨」打開 liff.line.me/…?order=1：沒有叫貨連結，先用 LINE 身分換一個
+let liffInit=null;
+const liffSdk=()=>window.liff?Promise.resolve():new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://static.line-scdn.net/liff/edge/2/sdk.js';s.onload=ok;s.onerror=no;document.head.appendChild(s)});
+async function liffLink(){
+  if(T||Q.get('order')!=='1')return true;
+  try{
+    const c=await (await fetch('/api/admin?lineConfig=1')).json();if(!c.liffId)return true;
+    await liffSdk();liffInit=liff.init({liffId:c.liffId});await liffInit;
+    if(!liff.isLoggedIn()){liff.login({redirectUri:location.href});return false}
+    const r=await fetch('/api/shop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'liffLink',accessToken:liff.getAccessToken()})});
+    const j=await r.json();if(r.ok&&j.t)T=j.t;
+  }catch{}
+  return true;
+}
 function initLiff(){
+  if(liffInit){liffInit.then(()=>{liffReady=liff.isInClient()}).catch(()=>{});return}
   const s=document.createElement('script');s.src='https://static.line-scdn.net/liff/edge/2/sdk.js';
   s.onload=()=>liff.init({liffId:D.liffId}).then(()=>{liffReady=liff.isInClient()}).catch(()=>{});
   document.head.appendChild(s);
@@ -384,7 +399,7 @@ $('review').addEventListener('click',openSheet);
 $('back').addEventListener('click',()=>$('sheet').classList.remove('on'));
 $('submit').addEventListener('click',submit);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')$('sheet').classList.remove('on')});
-load();
+liffLink().then(ok=>{if(ok)load()});
 </script>
 </body>
 </html>

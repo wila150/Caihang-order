@@ -1,6 +1,7 @@
 // 店家叫貨頁用的 API（不回傳任何價格）
 import { SHOP, PRESET } from '../lib/config.js';
-import { verify, orderLink } from '../lib/token.js';
+import { verify, orderLink, sign } from '../lib/token.js';
+import { lineProfile } from '../lib/linelogin.js';
 import { json, fail, readJSON, originOf, UserError } from '../lib/http.js';
 import { push, notifyAdmins, displayName } from '../lib/line.js';
 import { openDate, label, cutoffLabel, addonDate, addonUntilLabel, getRulesNow } from '../lib/dates.js';
@@ -75,6 +76,11 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await readJSON(request);
+    // 圖文選單「我要叫貨」直接開叫貨頁（LIFF）：用 LINE 的 access token 確認是誰，換一個叫貨連結的簽章
+    if (body.action === 'liffLink') {
+      const { userId } = await lineProfile(String(body.accessToken || ''));
+      return json({ t: sign(userId) });
+    }
     const uid = verify(body.t);
     if (!uid) throw new UserError('這個叫貨連結過期了，請回到 LINE 再點一次「我要叫貨」', 401);
     if (body.action === 'join') {
