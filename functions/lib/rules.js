@@ -6,6 +6,9 @@ import { CUTOFF_HOUR, CLOSED_WEEKDAYS } from './config.js';
 import { setRules, getRulesNow } from './dates.js';
 import { UserError } from './http.js';
 
+// ERP 出貨單可以勾的欄位：抬頭的日期、單號、業務、電話、地址、總金額，表格的單價、金額欄，下面的簽名欄
+export const SLIP_FIELDS = ['date', 'no', 'rep', 'phone', 'address', 'amount', 'price', 'total', 'sign'];
+const SLIP_FIELDS_DEFAULT = ['date', 'no', 'rep', 'address', 'amount', 'price', 'total', 'sign'];
 export const DEFAULT_RULES = {
   cutoff: `${String(CUTOFF_HOUR).padStart(2, '0')}:00`, // 配送日前一天幾點截單
   closed: CLOSED_WEEKDAYS, // 不配送的星期幾（0＝週日）
@@ -16,7 +19,7 @@ export const DEFAULT_RULES = {
   maxEdits: 2, // 店家送出後自己最多改幾次，改滿只能加不能減（0＝不限）；老闆在後台改不算
   palette: 'garlic', // 整個 App 的配色：garlic 墨綠暖白、blue 科技藍、mint 薄荷綠、gray 商務灰
   // 列印：on＝要顯示的報表按鈕（見 PRINTS），slip／stmt＝出貨單、對帳單用系統格式或 ERP 格式，address／fax 印在信封，env＝信封尺寸
-  prints: { on: ['buy', 'daily'], slip: 'sys', stmt: 'sys', address: '', fax: '', env: 'c5' },
+  prints: { on: ['buy', 'daily'], slip: 'sys', stmt: 'sys', address: '', fax: '', env: 'c5', title: '', fields: SLIP_FIELDS_DEFAULT },
 };
 export const PRINTS = ['buy', 'supOrder', 'pick', 'purchase', 'daily', 'stmtBrief', 'envelope', 'arSum', 'sales'];
 export const PALETTES = ['garlic', 'blue', 'mint', 'gray'];
@@ -75,6 +78,10 @@ export async function savePrints(input) {
     address: String(input.address || '').trim().slice(0, 80),
     fax: String(input.fax || '').trim().slice(0, 20),
     env: ['c5', 'dl', 'a4'].includes(input.env) ? input.env : 'c5',
+    // ERP 出貨單抬頭的公司名稱（例如 ERP 上的「明恩農產行」），沒填就用 SHOP_NAME
+    title: String(input.title || '').trim().slice(0, 30),
+    // ERP 出貨單要印哪些欄位
+    fields: Array.isArray(input.fields) ? [...new Set(input.fields.filter((k) => SLIP_FIELDS.includes(k)))] : SLIP_FIELDS_DEFAULT,
   };
   await getFirestore().doc('settings/rules').set({ prints: p }, { merge: true });
   setRules({ prints: p });

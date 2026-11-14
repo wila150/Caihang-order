@@ -232,6 +232,10 @@ h2{font-size:1.15rem;margin:0 0 4px;font-weight:900}
 
 .addform{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;align-items:end;margin-bottom:18px}
 .addform label{display:flex;flex-direction:column;font-size:.82rem;color:var(--muted);gap:2px}
+/* ERP 出貨單欄位勾選：整列寬，勾選框和字在同一行 */
+.addform .pfields{grid-column:1/-1;border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0}
+.addform .pfields legend{font-size:.82rem;color:var(--muted);padding:0 4px}
+.addform .pfields label{flex-direction:row;align-items:center;gap:6px;font-size:.95rem;color:var(--ink)}
 .addform input,.addform select{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 8px;color:var(--ink);font-size:.95rem}
 .addform button{border:0;background:var(--leaf);color:#fff;border-radius:6px;padding:8px 12px;font-weight:700}
 .units{display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
@@ -422,6 +426,8 @@ h2{font-size:1.15rem;margin:0 0 4px;font-weight:900}
 .paper{background:#fff;color:#111;margin:0 auto;font-size:13px;line-height:1.5;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
 .paper.a4{width:210mm;max-width:100%;padding:12mm}
 .paper.r80{width:80mm;max-width:100%;padding:4mm;font-size:12px}
+.paper.c1{width:241mm;max-width:100%;padding:5mm 6mm;font-size:12px;line-height:1.35}
+.paper.c1 .doc.eslip{height:130mm;overflow:hidden;margin:0}
 .doc+.doc{margin-top:10mm;padding-top:10mm;border-top:1px dashed #999}
 .doc h3{margin:0;font-size:1.4em;text-align:center}
 .doc .meta{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;margin:6px 0 8px;font-size:.95em}
@@ -748,7 +754,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111410</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111411</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -775,6 +781,8 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
     <form class="addform rules" id="printsForm" onsubmit="return false">
       <p class="sub">要印哪些在出貨單、採買總表、對帳頁按「🖨 列印…」當場勾。這裡設預設的格式和信封。</p>
       <label>出貨單格式<select id="pSlip"><option value="sys">系統格式（品名、數量、單價、金額）</option><option value="erp">ERP 格式（公司寶號、單號、民國年、兩欄）</option></select></label>
+      <label>公司名稱（印在 ERP 出貨單抬頭）<input id="pTitle" maxlength="30" placeholder="例如 明恩農產行"></label>
+      <fieldset class="pfields"><legend>ERP 出貨單要印的欄位（項次、產品名稱、數量一定會印）</legend><div id="pFields" style="display:flex;flex-wrap:wrap;gap:6px 16px"></div></fieldset>
       <label>對帳單格式<select id="pStmt"><option value="sys">系統格式（每天一筆金額）</option><option value="erp">ERP 格式（每張單的品項明細）</option></select></label>
       <label>商店地址（印在信封寄件人）<input id="pAddr" maxlength="80" placeholder="例如 臺中市太平區…"></label>
       <label>傳真（印在信封）<input id="pFax" maxlength="20"></label>
@@ -880,6 +888,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   <div class="pv-bar"><b>列印預覽</b>
     <button data-paper="a4" aria-pressed="true">A4</button>
     <button data-paper="r80" aria-pressed="false">80mm 感熱紙</button>
+    <button data-paper="c1" aria-pressed="false">中一刀 24×14cm</button>
     <button class="go" data-doprint="1">列印</button>
     <button data-close="1">關閉</button>
   </div>
@@ -2355,7 +2364,9 @@ function docMonth(){
   <tbody>${rows}</tbody><tfoot><tr><td colspan="2">合計</td><td class="n">${money(sum)}</td><td class="n">${money(got)}</td><td class="n">${money(sum-got)}</td></tr></tfoot></table></div>`;
 }
 /* ---------- ERP 格式的單子（照菜行 ERP 印的樣子）---------- */
-const PR=()=>({on:['buy','daily'],slip:'sys',stmt:'sys',address:'',fax:'',env:'c5',...(D.rules?.prints||{})});
+const SLIP_F=[['date','日期'],['no','單號'],['rep','業務'],['phone','電話'],['address','地址'],['amount','總金額（抬頭）'],['price','單價欄'],['total','金額欄'],['sign','簽名欄']],SLIP_F_DEF=['date','no','rep','address','amount','price','total','sign'];
+const PR=()=>({on:['buy','daily'],slip:'sys',stmt:'sys',address:'',fax:'',env:'c5',title:'',fields:SLIP_F_DEF,...(D.rules?.prints||{})});
+const slipF=k=>PR().fields.includes(k);
 const prOn=k=>PR().on.includes(k);
 const PKS=[['buy','採買總表'],['supOrder','叫貨單（依廠商）'],['pick','出貨明細表（撿貨）'],['purchase','進貨單'],['daily','當日營業報表'],['stmtBrief','客戶對帳單（只列單號金額）'],['envelope','信封'],['arSum','客戶帳款統計表'],['sales','客戶產品銷售統計表']];
 const roc=d=>`${+d.slice(0,4)-1911}/${d.slice(5,7)}/${d.slice(8,10)}`;
@@ -2421,14 +2432,28 @@ function docPurchase(){
     <div class="dash">金額：${n0(sum)}${rows.some(r=>r.c==null)?'（有品項沒填進價）':''}</div></div>`}).join('');
 }
 // ERP 格式出貨單
+// ERP 出貨單：左邊 1～12、右邊 13～24，一張最多 24 項，超過接下一張；不滿也畫滿 12 行，每張高度一樣
+const SLIP_ROWS=12;
 function docSlipErp(k){
   const s=SM()[sidOf(k)],o=orderOf(k),items=sortItems(o.items);
   const priced=hasPrice()&&!o.items.some(i=>!(i.pid in D.dayPrices));
-  const cell=(i,n)=>`<td class="n">${n+1}</td><td>${esc(i.name)}</td><td class="n">${billQty(i)?esc(qtyText(billQty(i),i.unit)):'缺貨'}</td><td class="n">${priced?(+i.price).toFixed(2):''}</td><td class="n">${priced?n0(billQty(i)*i.price):''}</td>`;
-  return `<div class="doc erp break"><div class="et"><span></span><h3>${esc(SHOPN())}</h3><span>${D.shop.phone?`Tel:${esc(D.shop.phone)}`:''}</span></div>
-  <div class="eh"><span>公司寶號：${sname(s)}</span><span>日期：${roc(D.date)}</span><span>單號：${slipNo(D.date,s.id,seqOf(k))}</span><span>金額：${priced?n0(amount(o)):''}</span></div>
-  ${twoCol(items,cell,5,'<th class="n">項次</th><th>產品名稱</th><th class="n">數量</th><th class="n">單價</th><th class="n">金額</th>')}
-  <div class="sign" style="border-top:1px dashed #111;padding-top:6px"><div>送貨人：＿＿＿＿＿＿</div>${signLine(k)}</div></div>`;
+  const fP=slipF('price'),fT=slipF('total'),cols=3+(fP?1:0)+(fT?1:0);
+  const cell=(i,n)=>i?`<td class="n">${n+1}</td><td>${esc(i.name)}</td><td class="n">${billQty(i)?esc(qtyText(billQty(i),i.unit)):'缺貨'}</td>${fP?`<td class="n">${priced?(+i.price).toFixed(2):''}</td>`:''}${fT?`<td class="n">${priced?n0(billQty(i)*i.price):''}</td>`:''}`:`<td colspan="${cols}">&nbsp;</td>`;
+  const head=`<th class="n">項次</th><th>產品名稱</th><th class="n">數量</th>${fP?'<th class="n">單價</th>':''}${fT?'<th class="n">金額</th>':''}`;
+  const per=SLIP_ROWS*2,pages=Math.max(1,Math.ceil(items.length/per)),title=PR().title||SHOPN();
+  const rep=s.rep!=null&&s.rep!==''?String(s.rep):'';
+  return Array.from({length:pages},(_,pg)=>{
+    const part=items.slice(pg*per,pg*per+per),base=pg*per;
+    const rows=Array.from({length:SLIP_ROWS},(_,r)=>`<tr>${cell(part[r],base+r)}<td class="gap"></td>${cell(part[r+SLIP_ROWS],base+r+SLIP_ROWS)}</tr>`).join('');
+    const eh=[`<span>公司寶號：${sname(s)}</span>`,slipF('date')&&`<span>日期：${roc(D.date)}</span>`,slipF('no')&&`<span>單號：${slipNo(D.date,s.id,seqOf(k))}</span>`,slipF('rep')&&rep&&`<span>業務：${esc(rep+(repName(rep)?'・'+repName(rep):''))}</span>`].filter(Boolean).join('');
+    // 右上角照 ERP 的單子：Tel、頁次、金額（金額只印在第一張）
+    const tr=[D.shop.phone&&`Tel:${esc(D.shop.phone)}`,`頁次：${pg+1}${pages>1?'／'+pages:''}`,slipF('amount')&&!pg&&`金額：${priced?n0(amount(o)):''}`].filter(Boolean).join('<br>');
+    const eh2=[slipF('address')&&s.address&&`<span>地址：${esc(s.address)}</span>`,slipF('phone')&&s.phone&&`<span>電話：${esc(s.phone)}</span>`].filter(Boolean).join('');
+    return `<div class="doc erp eslip break"><div class="et"><span></span><h3>${esc(title)}</h3><span>${tr}</span></div>
+  <div class="eh">${eh}</div>${eh2?`<div class="eh">${eh2}</div>`:''}
+  <table><thead><tr>${head}<th class="gap"></th>${head}</tr></thead><tbody>${rows}</tbody></table>
+  ${slipF('sign')?`<div class="sign" style="border-top:1px dashed #111;padding-top:6px"><div>送貨人：＿＿＿＿＿＿</div>${signLine(k)}</div>`:''}</div>`;
+  }).join('');
 }
 const monthSpan=()=>{const [y,m]=D.month.split('-');const last=new Date(Date.UTC(+y,+m,0)).getUTCDate();return `${roc(D.month+'-01')} ~ ${roc(D.month+'-'+String(last).padStart(2,'0'))}`};
 // 整個月的單（明細對帳單、銷售統計表才要），同一個月只載一次
@@ -2499,11 +2524,12 @@ function renderBoss(){
 // 設定頁「列印」
 function renderPrints(){
   const p=PR();if($('printsForm').dataset.dirty)return;
+  $('pTitle').value=p.title||'';$('pFields').innerHTML=SLIP_F.map(([k,n])=>`<label><input type="checkbox" data-pfield="${k}" ${p.fields.includes(k)?'checked':''}>${n}</label>`).join('');
   $('pSlip').value=p.slip;$('pStmt').value=p.stmt;$('pAddr').value=p.address;$('pFax').value=p.fax;$('pEnv').value=p.env;
   if($('hPrints'))$('hPrints').textContent=`出貨單${p.slip==='erp'?' ERP':'系統'}格式・對帳單${p.stmt==='erp'?' ERP':'系統'}格式`;
 }
 async function savePrints(){
-  const prints={on:PR().on,slip:$('pSlip').value,stmt:$('pStmt').value,address:$('pAddr').value,fax:$('pFax').value,env:$('pEnv').value};
+  const prints={on:PR().on,slip:$('pSlip').value,stmt:$('pStmt').value,address:$('pAddr').value,fax:$('pFax').value,env:$('pEnv').value,title:$('pTitle').value,fields:[...document.querySelectorAll('[data-pfield]:checked')].map(x=>x.dataset.pfield)};
   try{const j=await api('POST',{action:'prints',prints});D.rules.prints=j.prints;delete $('printsForm').dataset.dirty;renderAll();toast('列印設定已儲存')}catch(e){toast(e.message)}
 }
 const ENV={c5:['229mm 162mm','150mm'],dl:['220mm 110mm','98mm']};
@@ -2548,7 +2574,7 @@ async function openPrint(kind,sid,fmt={}){
   document.querySelectorAll('[data-paper]').forEach(b=>b.hidden=!!envK);
   if(envK){$('paper').className='paper';$('paper').style.cssText=`width:${ENV[PR().env][0].split(' ')[0]};--envh:${ENV[PR().env][1]}`;fitPage();return}
   $('paper').style.cssText='';
-  let k='a4';try{k=localStorage.getItem('paper')==='r80'?'r80':'a4'}catch{}
+  let k='a4';try{k=['r80','c1'].includes(localStorage.getItem('paper'))?localStorage.getItem('paper'):'a4'}catch{}
   setPaper(k);
 }
 /* ---------- 列印選單：當場勾這次要印什麼，記住這台裝置上次勾的 ---------- */
@@ -2589,6 +2615,8 @@ function setPaper(k){
 // 80mm：Chrome 不吃「80mm auto」，要給實際長度，量內容高度當成一張長紙
 function fitPage(){
   const r80=$('paper').classList.contains('r80');
+  // 中一刀（ERP 連續報表紙）：固定 241×140mm 一張
+  if($('paper').classList.contains('c1')){$('pageSize').textContent='@page{size:241mm 140mm;margin:0}';return}
   const h=Math.ceil($('paper').scrollHeight*25.4/96)+10;
   if(ENV[$('paper').dataset.env]){$('pageSize').textContent=`@page{size:${ENV[$('paper').dataset.env][0]};margin:0}`;return}
   $('pageSize').textContent=r80?`@page{size:80mm ${h}mm;margin:2mm}`:'@page{size:A4;margin:12mm}';
