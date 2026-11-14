@@ -274,7 +274,9 @@ function renderChips(){
 }
 function visible(){
   const q=$('q').value.trim();
-  const items=D.products.filter(p=>p.on||cart[p.id]>0);
+  // 菜行大多用斤：公斤的品項（ERP 品名後面有「(公)」）排在後面，店家先看到斤的；其他單位（包、罐…）照原本順序
+  const kgLast=a=>a.map((p,i)=>[p,i]).sort((x,y)=>(x[0].unit==='公斤')-(y[0].unit==='公斤')||x[1]-y[1]).map(x=>x[0]);
+  const items=kgLast(D.products.filter(p=>p.on||cart[p.id]>0));
   if(q)return items.filter(p=>p.name.includes(q));
   if(cat==='常叫'){const f=frequent();Object.keys(cart).forEach(k=>cart[k]>0&&f.add(k));return items.filter(p=>f.has(p.id))}
   if(cat==='全部')return items;
