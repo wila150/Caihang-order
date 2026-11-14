@@ -748,7 +748,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111406</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111407</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -1552,8 +1552,10 @@ function renderSlips(){
   const proxyBtn=sid=>D.date===D.openDate&&may('editOrders')?`<button class="proxy" data-proxy="${sid}">📝 用叫貨單幫他叫</button>`:'';
   // 店家多：只列有叫貨的；沒叫貨的用「找店家」找到才出現（要幫他電話叫貨、加品項）
   const q=SQ('sqSlips');
-  const stores=[...activeStores(),...D.stores.filter(s=>!s.on&&slipsOf(s.id).length)].filter(s=>storeHit(s,q)&&(q||slipsOf(s.id).length));
-  const noneN=activeStores().filter(s=>!slipsOf(s.id).length).length;
+  // 選了某位業務就只列他的店（打字找店家時不管業務，才找得到）
+  const cr=curRep(),inRep=s=>q||cr==='all'||repOf(s)===cr;
+  const stores=[...activeStores(),...D.stores.filter(s=>!s.on&&slipsOf(s.id).length)].filter(s=>storeHit(s,q)&&(q||slipsOf(s.id).length)&&inRep(s));
+  const noneN=activeStores().filter(s=>!slipsOf(s.id).length&&inRep(s)).length;
   $('slipBox').innerHTML=stores.flatMap(s=>{
     const mine=slipsOf(s.id);
     if(!mine.length)return [`<div class="slip none"><div class="slip-h"><b>${esc(s.name)}</b><span class="stop">第 ${s.route} 站</span></div><div class="empty">還沒叫貨</div>${proxyBtn(s.id)}${addRow(s.id,`幫${esc(s.name)}加品項`,'加入','data-additem')}</div>`];
@@ -1582,6 +1584,17 @@ const DEPOT='臺中市東區樂業路105巷1號';
 const mapLinks=(from,addrs)=>{const out=[];for(let i=0;i<addrs.length;i+=10){const seg=addrs.slice(i,i+10),u=new URLSearchParams({api:'1',origin:i?addrs[i-1]:from,destination:seg.at(-1),travelmode:'driving'});if(seg.length>1)u.set('waypoints',seg.slice(0,-1).join('|'));out.push('https://www.google.com/maps/dir/?'+u)}return out};
 const repOf=s=>s?.rep!=null&&s.rep!==''?String(s.rep):'未指定';
 const repSort=(a,b)=>a==='未指定'?1:b==='未指定'?-1:a.localeCompare(b,'zh-Hant',{numeric:true});
+// 看哪位業務：這台裝置選過的優先，沒選過就用帳號設定的「負責業務」，都沒有就看全部
+let repOpen=new Set();
+const curRep=()=>{let v=null;try{v=localStorage.getItem('repView')}catch{}return v||D?.me?.rep||'all'};
+function setRep(r){try{localStorage.setItem('repView',r)}catch{}repOpen=new Set();renderStores();renderSlips()}
+// 業務按鈕：全部｜業務 0｜業務 1…（數字是幾家）
+function repChips(list){
+  const n={};for(const s of list)n[repOf(s)]=(n[repOf(s)]||0)+1;
+  const reps=Object.keys(n).sort(repSort);if(reps.length<2&&curRep()==='all')return '';
+  const cur=curRep();
+  return `<div class="sfilt" role="group" aria-label="看哪位業務"><button type="button" data-repv="all" class="${cur==='all'?'on':''}">全部業務（${list.length}）</button>${reps.map(r=>`<button type="button" data-repv="${esc(r)}" class="${cur===r?'on':''}">${r==='未指定'?'沒指定業務':'業務 '+esc(r)}（${n[r]}）</button>`).join('')}</div>`;
+}
 let runEdit={},runOpen=null,runDate=''; // runEdit[業務]＝還沒儲存的順序（店家 id）
 // 排到一半又有店叫貨：排好的照排，新叫的接在後面；換日期就重來
 const runIds=(r,g)=>{if(runDate!==D.date){runEdit={};runDate=D.date}const base=g[r]||[],e=runEdit[r];return e?[...e.filter(id=>base.includes(id)),...base.filter(id=>!e.includes(id))]:base};
@@ -1592,11 +1605,12 @@ function runGroups(){
   return g;
 }
 function renderMaps(){
-  const sm=SM(),g=runGroups(),reps=Object.keys(g).sort(repSort);
-  if(!reps.length){$('mapBox').innerHTML='';return}
+  const sm=SM(),g=runGroups(),all=Object.keys(g).sort(repSort),cr=curRep(),reps=cr==='all'?all:all.filter(r=>r===cr);
+  if(!all.length){$('mapBox').innerHTML='';return}
   const from=PR().address||DEPOT,total=reps.reduce((n,r)=>n+g[r].length,0);
   if(runOpen===null)runOpen=true;
-  $('mapBox').innerHTML=`<details class="bill" id="runBox" style="padding:10px 14px" ${runOpen?'open':''}><summary>🚚 今天要送的店（${total} 家，依業務分）</summary>
+  $('mapBox').innerHTML=`<details class="bill" id="runBox" style="padding:10px 14px" ${runOpen?'open':''}><summary>🚚 今天要送的店（${cr==='all'?`${total} 家，依業務分`:`${cr==='未指定'?'沒指定業務':'業務 '+esc(cr)}：${reps.reduce((n,r)=>n+g[r].length,0)} 家`}）</summary>
+    ${repChips(all.flatMap(r=>g[r].map(id=>sm[id])))}${reps.length?'':`<div class="empty">業務 ${esc(cr)} 今天沒有要送的店</div>`}
     <div style="font-size:.9em;color:var(--muted);margin:6px 0">按 ↑ ↓ 排送貨順序，排好按「儲存順序」。只會調這些店彼此的先後，今天沒叫貨的店位置不變。</div>
     ${reps.map(r=>{
       const ids=runIds(r,g).filter(id=>sm[id]),dirty=!!runEdit[r];
@@ -1832,7 +1846,7 @@ function renderStores(){
   const fit=x=>sFilter==='unbound'?x.on&&unb(x):sFilter==='off'?!x.on:sFilter==='cash'?x.on&&x.pay==='cash':true;
   const gName=id=>(D.priceGroups||[]).find(g=>g.id===id)?.name;
   const cards=S.map((s,i)=>{
-    if(s.name&&(!storeHit(s,q)||!fit(s)))return '';
+    if(s.name&&(!storeHit(s,q)||!fit(s)||(curRep()!=='all'&&repOf(s)!==curRep())))return '';
     const open=sOpen.has(i)||!s.name,g=gName(s.groupId);
     const sub=[s.code&&`ERP ${esc(s.code)}`,s.chain&&`連鎖 ${esc(s.chain)}`,s.phone&&esc(s.phone),s.contact&&esc(s.contact)].filter(Boolean).join('・');
     const tags=[!s.on&&'<i class="st off">停止合作</i>',
@@ -1857,9 +1871,13 @@ function renderStores(){
   // 同一位業務的店排在一起（業務 1、2、3…，沒指定的放最後），組裡照站號；剛新增還沒填店名的放最上面
   const shown=S.map((s,i)=>i).filter(i=>cards[i]).sort((a,b)=>(!!S[b].name-!!S[a].name)||repSort(repOf(S[a]),repOf(S[b]))||(+S[a].route||0)-(+S[b].route||0));
   const nRep={};for(const i of shown)if(S[i].name)nRep[repOf(S[i])]=(nRep[repOf(S[i])]||0)+1;
+  // 看全部業務時每位業務先收起來（店太多），點標題才展開；有打字找店家就全部展開
+  const fold=curRep()==='all'&&!q&&Object.keys(nRep).length>1;
   let lastRep=null;
-  const rows=shown.map(i=>{const r=S[i].name?repOf(S[i]):null,h=r&&r!==lastRep?`<h3 style="margin:16px 0 6px">${r==='未指定'?'沒指定業務':'業務 '+esc(r)}（${nRep[r]} 家）</h3>`:'';if(r)lastRep=r;return h+cards[i]}).join('');
-  $('storeList').innerHTML=(S.length?`<div class="sfilt">${Object.keys(FL).filter(k=>k==='all'||cnt[k]).map(k=>`<button type="button" data-sfilt="${k}" class="${(sFilter||'all')===k?'on':''}">${FL[k]} ${cnt[k]}</button>`).join('')}</div>`:'')
+  const rows=shown.map(i=>{const r=S[i].name?repOf(S[i]):null,open=!fold||!r||repOpen.has(r);
+    const h=r&&r!==lastRep?(fold?`<button type="button" class="repgrp" data-repgrp="${esc(r)}" aria-expanded="${open}" style="display:flex;justify-content:space-between;align-items:center;width:100%;margin:10px 0 6px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-weight:700;font-size:1.05rem;cursor:pointer"><span>${r==='未指定'?'沒指定業務':'業務 '+esc(r)}（${nRep[r]} 家）</span><span style="color:var(--muted);font-weight:400">${open?'收起 ▲':'展開 ▼'}</span></button>`:`<h3 style="margin:16px 0 6px">${r==='未指定'?'沒指定業務':'業務 '+esc(r)}（${nRep[r]} 家）</h3>`):'';
+    if(r)lastRep=r;return h+(open?cards[i]:'')}).join('');
+  $('storeList').innerHTML=(S.length?repChips(S.filter(x=>x.name)):'')+(S.length?`<div class="sfilt">${Object.keys(FL).filter(k=>k==='all'||cnt[k]).map(k=>`<button type="button" data-sfilt="${k}" class="${(sFilter||'all')===k?'on':''}">${FL[k]} ${cnt[k]}</button>`).join('')}</div>`:'')
     +(rows||(S.length?'<div class="empty">沒有符合的店家</div>':'<div class="empty">還沒有店家。按「新增店家」，或等店家在 LINE 申請後在上面開通。</div>'));
   $('saveS').disabled=!sDirty;$('sDirty').textContent=sDirty?'有尚未儲存的修改':'';
   renderGroups();
@@ -2215,7 +2233,7 @@ function renderUsers(){queueMicrotask(setHints);
   $('userList').innerHTML=(reqs?`<h4 style="margin:6px 0">等你加入（用 LINE 申請）</h4>${reqs}<h4 style="margin:12px 0 6px">已加入</h4>`:'')+D.users.map(u=>`<div class="urow ${u.disabled?'off':''}">
     <span><b>${esc(u.name||u.email)}</b><small>${u.email.startsWith('line:')?'LINE 登入':u.email.endsWith(ACCT)?'帳號 '+esc(u.email.slice(0,-ACCT.length)):esc(u.email)}${u.disabled?'・已停用':''}${u.email===D.me.email?'・你自己':''}</small></span>
     ${u.fixed?`<span>${D.roles.owner}</span><span class="meta">在 OWNER_EMAILS 設定</span>`:`<select data-urole="${esc(u.email)}" aria-label="${esc(u.email)} 的角色">${Object.entries(D.roles).filter(([k])=>k!=='owner'&&k!=='engineer').map(([k,v])=>`<option value="${k}" ${k===u.role?'selected':''}>${v}</option>`).join('')}</select>
-    <span class="ua">${u.email.endsWith(ACCT)&&u.email!==D.me.email?`<button data-upass="${esc(u.email)}">改密碼</button>`:''}<button data-uperm="${esc(u.email)}">個別權限${(u.add?.length||u.remove?.length)?`（${(u.add?.length||0)+(u.remove?.length||0)}）`:''}</button><button data-uoff="${esc(u.email)}" data-off="${u.disabled?0:1}">${u.disabled?'恢復':'停用'}</button><button data-urm="${esc(u.email)}">刪除</button></span>${openPerm===u.email?userPermEditor(u):''}`}</div>`).join('')||'<div class="empty">還沒有其他帳號</div>';
+    ${u.fixed?'':`<select data-urep="${esc(u.email)}" aria-label="${esc(u.name||u.email)} 負責的業務" title="登入後預設只看這位業務的店"><option value="">看全部業務</option>${[...new Set(D.stores.map(x=>x.rep).filter(x=>x!=null&&x!=='').map(String))].sort((a,b)=>a.localeCompare(b,'zh-Hant',{numeric:true})).map(r=>`<option value="${esc(r)}" ${String(u.rep||'')===r?'selected':''}>只看業務 ${esc(r)}</option>`).join('')}</select>`}<span class="ua">${u.email.endsWith(ACCT)&&u.email!==D.me.email?`<button data-upass="${esc(u.email)}">改密碼</button>`:''}<button data-uperm="${esc(u.email)}">個別權限${(u.add?.length||u.remove?.length)?`（${(u.add?.length||0)+(u.remove?.length||0)}）`:''}</button><button data-uoff="${esc(u.email)}" data-off="${u.disabled?0:1}">${u.disabled?'恢復':'停用'}</button><button data-urm="${esc(u.email)}">刪除</button></span>${openPerm===u.email?userPermEditor(u):''}`}</div>`).join('')||'<div class="empty">還沒有其他帳號</div>';
 }
 /* ---------- 權限：各角色勾選、個別員工多給／拿掉 ---------- */
 let permDraft=null,openPerm='';
@@ -2788,6 +2806,8 @@ document.addEventListener('click',async e=>{
   if(b.dataset.pal){choosePalette(b.dataset.pal);return}
   if(b.dataset.sopen!=null){const i=+b.dataset.sopen;sOpen.has(i)?sOpen.delete(i):sOpen.add(i);renderStores();return}
   if(b.dataset.sfilt){sFilter=b.dataset.sfilt==='all'?'':b.dataset.sfilt;renderStores();return}
+  if(b.dataset.repv){setRep(b.dataset.repv);return}
+  if(b.dataset.repgrp){const r=b.dataset.repgrp;repOpen.has(r)?repOpen.delete(r):repOpen.add(r);renderStores();document.querySelector(`[data-repgrp="${CSS.escape(r)}"]`)?.focus();return}
   if(b.dataset.invite){if(sDirty){toast('請先按「儲存店家」');return}openInvite(b.dataset.invite);return}
   if(b.id==='invCopy'){try{await navigator.clipboard.writeText(INV.url);toast('已複製，可以貼到店家的 LINE 給他按')}catch{prompt('複製這個連結：',INV.url)}return}
   if(b.id==='invPrint'){printInvite();return}
@@ -2907,6 +2927,7 @@ document.addEventListener('change',async e=>{
   if(t.dataset.bought){const it=totals().find(x=>x.pid===t.dataset.bought),raw=t.value.trim(),q=raw===''?0:parseQty(raw,it.unit);if(raw&&!(q>0)){toast('數量看不懂，例如 20 或 2斤4兩');return}saveBought(it.pid,q)}
   if(t.dataset.expcat){const e=R.expenses.find(x=>x.id===t.dataset.expcat);expApi({action:'expenseUpdate',id:e.id,cat:t.value},`「${e.item}」改成${t.value}，下次會自動分到這類`)}
   if(t.dataset.urole){userAction({action:'updateUser',email:t.dataset.urole,role:t.value},'角色已更新')}
+  if(t.dataset.urep!=null){userAction({action:'updateUser',email:t.dataset.urep,rep:t.value},t.value?`登入後預設只看業務 ${t.value} 的店`:'登入後預設看全部業務')}
 });
 document.addEventListener('click',e=>{const im=e.target.closest('img[data-zoom]');if(im){$('paper').innerHTML=`<div class="doc"><img src="${im.src}" style="width:100%" alt="店家傳的照片"></div>`;$('pv').classList.add('on')}});
 document.addEventListener('keydown',e=>{

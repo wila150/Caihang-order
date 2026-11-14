@@ -85,7 +85,7 @@ export async function signedIn(request) {
     const r = await lineRole(s.userId);
     if (!r) throw new UserError('這個 LINE 已經沒有後台權限了，請找老闆', 403);
     const doc = r.role === 'owner' ? null : (await userDoc('line:' + s.userId).get()).data();
-    return { email: 'line:' + s.userId, name: r.name || s.name || 'LINE 使用者', role: r.role, engineer: false, line: true, perms: await effectivePerms(r.role, doc) };
+    return { email: 'line:' + s.userId, name: r.name || s.name || 'LINE 使用者', role: r.role, engineer: false, line: true, rep: doc?.rep || '', perms: await effectivePerms(r.role, doc) };
   }
   const token = auth.replace(/^Bearer /, '');
   if (!token) throw new UserError('請先登入', 401);
@@ -96,7 +96,7 @@ export async function signedIn(request) {
   const doc = (await userDoc(email).get()).data();
   const role = ownerEmails().includes(email) ? 'owner' : engineerEmails().includes(email) ? 'engineer' : doc?.disabled ? null : doc?.role;
   if (!role) throw new UserError(`${email} 沒有後台權限，請老闆到「帳號」加入這個 Email`, 403);
-  return { email, name: doc?.name || user.name || email, role, engineer: engineerEmails().includes(email), perms: await effectivePerms(role, doc) };
+  return { email, name: doc?.name || user.name || email, role, engineer: engineerEmails().includes(email), rep: doc?.rep || '', perms: await effectivePerms(role, doc) };
 }
 
 export function need(me, what) {
@@ -136,7 +136,8 @@ export async function addLineUser({ userId, name, role }) {
   return listUsers();
 }
 
-export async function updateUser({ email, role, disabled, add, remove }) {
+// rep：這個人負責的業務編號，登入後店家頁、今天要送的店預設只看這位業務（只是預設，不是權限）
+export async function updateUser({ email, role, disabled, add, remove, rep }) {
   email = normEmail(email);
   if (ownerEmails().includes(email) || engineerEmails().includes(email)) throw new UserError('老闆和工程師帳號的權限是固定的（在 OWNER_EMAILS、ENGINEER_EMAILS 設定）');
   const ref = userDoc(email);
@@ -146,6 +147,7 @@ export async function updateUser({ email, role, disabled, add, remove }) {
   if (disabled !== undefined) patch.disabled = !!disabled;
   if (add !== undefined) patch.add = cleanPerms(add);
   if (remove !== undefined) patch.remove = cleanPerms(remove);
+  if (rep !== undefined) patch.rep = String(rep || '').trim().slice(0, 4);
   await ref.update(patch);
   return listUsers();
 }

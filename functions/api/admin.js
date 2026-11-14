@@ -146,7 +146,7 @@ export async function GET(request) {
     ]);
     const showPrices = can(me, 'prices') || bills;
     return json({
-      me: { email: me.email, name: me.name, role: me.role, engineer: me.engineer, line: me.line, roleName: ROLES[me.role], can: [...Object.keys(PERMS), 'users'].filter((w) => can(me, w)) },
+      me: { email: me.email, name: me.name, rep: me.rep || '', role: me.role, engineer: me.engineer, line: me.line, roleName: ROLES[me.role], can: [...Object.keys(PERMS), 'users'].filter((w) => can(me, w)) },
       // 設定 → 權限：可以勾的權限、各角色現在的設定、預設值（只有老闆和工程師拿得到）
       perms: can(me, 'users') ? { list: PERMS, roles: await getRolePerms(), defaults: DEFAULT_CAN } : null,
       // 工程師這個角色只有工程師自己看得到
