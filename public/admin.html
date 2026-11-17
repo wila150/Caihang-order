@@ -707,7 +707,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   <section id="slips" hidden>
     <h2>各店出貨單</h2>
     <div id="printNote"></div>
-    <div class="bar"><button class="pbtn" data-pchoose="slips">🖨 列印…</button><button class="pbtn" id="xlsDay">匯出 Excel</button><button class="send" id="receiptAll">全部傳 LINE 收據／出貨單</button></div>
+    <div class="bar"><button class="pbtn" data-pchoose="slips">🖨 列印…</button><button class="pbtn" id="xlsDay">匯出 Excel</button><button class="send" id="receiptAll">全部傳 LINE 收據／出貨單</button><button class="ok" id="pickOpen" type="button">📱 平板撿貨</button></div>
     <div id="mapBox"></div>
     <div id="issueBox"></div>
     <input id="sqSlips" class="psearch" type="search" placeholder="找店家（店名、ERP 代號、連鎖店）" aria-label="找店家（店名、ERP 代號、連鎖店）">
@@ -754,7 +754,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--leaf)}
   </section>
 
   <section id="users" hidden>
-    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111414</small></div>
+    <div class="mebox"><span id="meInfo"></span><small class="ver">版本 111701</small></div>
     <a class="manual" href="/manual" onclick="event.preventDefault();$('helpBtn').click()"><b>📖 使用說明書</b></a>
     <div class="sgrps">
     <div id="rulesBox">
@@ -1110,6 +1110,7 @@ function renderAll(){
   if(tabs[tab]===false)showTab('board');
 
   $('receiptAll').hidden=!may('statement');
+  $('pickOpen').hidden=!may('editOrders');
   $('slips').classList.toggle('ro',!may('editOrders'));
   $('shopName').textContent=D.shop.name+' 叫貨後台';
   const n=new Set(D.orders.map(o=>o.storeId)).size;
@@ -3022,5 +3023,6 @@ async function cookieLogin(){
 if(LS.get())load();else{sessionStorage.removeItem('lineLogin');cookieLogin()}
 initAuth().catch(e=>{if(LS.get())return;$('login').hidden=false;$('loginErr').textContent='登入元件載入失敗，請重新整理'});
 </script>
+<script src="/pick.js"></script>
 </body>
 </html>

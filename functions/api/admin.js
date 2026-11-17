@@ -20,6 +20,7 @@ import { applyDraft } from '../lib/aiorder.js';
 import { saveImage } from './img.js';
 import { listBoss, newBossCode, unbindBoss } from '../lib/boss.js';
 import * as purchase from '../lib/purchase.js';
+import * as pick from '../lib/pick.js';
 
 async function statement(month, storeId) {
   const [all, paid] = await Promise.all([shop.monthAmounts(month), shop.getPaid(month)]);
@@ -94,6 +95,11 @@ export async function GET(request) {
       return json({ month: m, orders: await shop.ordersOfMonth(m) });
     }
     // 進貨單分頁：這個月的進貨單（照片點開才載）
+    // 平板撿貨：這天每張單誰在撿、撿到哪（撿貨畫面每 15 秒問一次，只回小小的資料）
+    if (q.get('picks')) {
+      need(me, 'editOrders');
+      return json({ picks: await pick.picksOfDate(q.get('picks')) });
+    }
     if (q.get('purchases')) {
       need(me, 'prices');
       const m = isMonth(q.get('purchases')) ? q.get('purchases') : thisMonth();
@@ -217,6 +223,18 @@ export async function POST(request) {
         need(me, 'editOrders');
         await store();
         const r = await shop.setShip(b.storeId, b.date, b.pid, b.ship, me.name, b.seq);
+        if (!can(me, 'prices')) r.order.items = r.order.items.map(noPriceItem);
+        return json(r);
+      }
+      case 'pick': {
+        need(me, 'editOrders');
+        await store();
+        return json({ pick: await pick.setPick(b.date, b.storeId, b.seq, b.op, me, !!b.force) });
+      }
+      case 'pickItem': {
+        need(me, 'editOrders');
+        await store();
+        const r = await pick.pickItem(b.date, b.storeId, b.seq, b.pid, b.ship, me);
         if (!can(me, 'prices')) r.order.items = r.order.items.map(noPriceItem);
         return json(r);
       }
